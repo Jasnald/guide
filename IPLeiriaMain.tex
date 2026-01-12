@@ -7,14 +7,14 @@
 %%% Document Options %%%
 \documentclass[
     language=english,
-    school=estg,
+    school=RWTH,
     docstage=final,
     media=paper,
     bookprint=false,
     linkcolor=red!45!black,
     chapterstyle=classic,
     coverstyle=classic,
-    aiacknowledgement=true,
+    aiacknowledgement=false,
     listprefix=false
 ]{IPLeiriaThesis} % Refer to the Wiki for a list of available options.
 
@@ -34,10 +34,10 @@
 \begin{document}
 
 % --- Front Matter ---
-\frontmatter
+%\frontmatter
 
 % Cover page (gerada automaticamente)
-\makecover
+%\makecover
 
 % Table of Contents
 \tableofcontents
@@ -65,11 +65,8 @@
 % \mainmatter
 
 % --- Your Chapters ---
-\input{Chapters/01_intro}
-\input{Chapters/Preprocess}
-\input{Chapters/Conversor}
-\input{Chapters/ElementProcess}
-\input{Chapters/Simulations}
+\input{Chapters/_init}
+
 % ==============================================================================
 % BACK MATTER
 % ==============================================================================

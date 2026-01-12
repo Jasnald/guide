@@ -1,0 +1,19 @@
+\section{Experiment 2: Milling Profile Analysis}
+\label{sec:exp_s2}
+
+\textbf{Package:} \texttt{src/Exp\_Data/s2\_exp/}
+
+This sub-package handles the dimensional data for the Milling experiment (Module B). Unlike the standard T-shape, this experiment often involves prismatic plates or specific cut geometries for sensitivity analysis.
+
+\subsection{Data Structure}
+\textbf{Scripts:} \texttt{sample\_dim\_2.py}, \texttt{mean\_dim\_2.py}
+
+Following the architecture of Experiment 1, this module isolates the data specific to the second experimental campaign.
+
+\begin{itemize}
+    \item \textbf{Raw Data (\texttt{sample\_dim\_2.py}):} 
+    Stores the measurement lists specific to the milling specimens (e.g., plate thickness, cut depth variations).
+    
+    \item \textbf{Mean Calculation (\texttt{mean\_dim\_2.py}):} 
+    The function \texttt{DimTwo()} (analogous to \texttt{DimOne}) computes the average dimensions. These values are consumed by the \texttt{sim\_two} and \texttt{sim\_iv} geometry strategies in the Abaqus modules to build the corresponding FE models.
+\end{itemize}

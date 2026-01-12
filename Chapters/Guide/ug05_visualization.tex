@@ -1,0 +1,31 @@
+\section{Step 4: Visualizing Results}
+\label{sec:guide_vis}
+
+\textbf{Goal:} Interpret the results using ParaView.
+
+\subsection{Loading Data}
+\begin{enumerate}
+    \item Open \textbf{ParaView}.
+    \item File $\rightarrow$ Open $\rightarrow$ Navigate to your output folder (e.g., \texttt{CM\_Directory/xdmf\_hdf5\_files/}).
+    \item Select a file, e.g., \texttt{Mesh-0\_8--Length-50.xdmf}.
+    \item Click \textbf{"Apply"} in the left properties panel.
+\end{enumerate}
+
+\subsection{Analyzing Stresses}
+\begin{enumerate}
+    \item In the toolbar, locate the variable selector (usually shows "Solid Color").
+    \item Change it to \textbf{"S"} (Stress Tensor).
+    \item In the component selector (next to "S"), choose:
+    \begin{itemize}
+        \item \textbf{S11:} Longitudinal Stress (typical interest for T-shapes).
+        \item \textbf{S33:} Normal Stress (to the cut plane).
+        \item \textbf{Mises:} Equivalent Von Mises stress.
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Interpretation Hints}
+\begin{itemize}
+    \item \textbf{Red Zones (Positive):} Indicate Tensile Residual Stress.
+    \item \textbf{Blue Zones (Negative):} Indicate Compressive Residual Stress.
+    \item \textbf{Validation:} The stress perpendicular to the cut surface (S33) should be close to zero at the cut face (boundary condition enforcement).
+\end{itemize}

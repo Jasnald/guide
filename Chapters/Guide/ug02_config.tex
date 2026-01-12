@@ -1,0 +1,41 @@
+\section{Step 1: Simulation Configuration}
+\label{sec:guide_config}
+
+\textbf{Goal:} Generate the master \texttt{config.json} file that controls all simulation parameters.
+
+\subsection{Action: Using the GUI}
+Navigate to the experiment data folder and launch the interface:
+
+\begin{lstlisting}[language=bash]
+cd src/Exp_Data/s1_exp
+python write_input_gui.py
+\end{lstlisting}
+
+\subsection{Configuration Checklist}
+Fill in the fields as follows:
+
+\begin{enumerate}
+    \item \textbf{Material Properties:}
+    \begin{itemize}
+        \item \textit{Elastic Modulus:} e.g., 210000 (MPa)
+        \item \textit{Poisson Ratio:} e.g., 0.3
+    \end{itemize}
+
+    \item \textbf{Design of Experiments (DOE):}
+    Define the search space for the sensitivity analysis.
+    \begin{itemize}
+        \item \textit{Mesh Range:} Min=0.6, Max=0.8, Step=0.1
+        \item \textit{Length Range:} Min=50, Max=100, Step=25
+    \end{itemize}
+    \textit{Note:} The software creates a job for every combination (e.g., Mesh0.6-Len50, Mesh0.6-Len75...).
+    \newline
+    \textit{Note:} If you put something like  Min=0.6, Max=0.6, Step=0.1, the software will break.
+
+    \item \textbf{Validation \& Save:}
+    \begin{itemize}
+        \item Click \textbf{"Save JSON"}: Confirm the success message.
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Verification}
+Go to \texttt{src/Exp\_Data/s1\_exp/config/} and check if \texttt{config.json} was created. Open it with a text editor to ensure the paths (e.g., \texttt{"work\_directory"}) match your machine's structure.

@@ -1,0 +1,53 @@
+\section{Legacy: Multi-Material Stiffness Gradient}
+\label{sec:rsa_e_legacy}
+
+\textbf{Module Path:} \texttt{src/Simulations/rsa\_e/}
+
+\begin{quote}
+    \textbf{Experimental Status:} This module represents an investigative branch designed to analyze Residual Stresses in components with heterogeneous material properties (Functionally Graded Materials or multi-layered structures). It implements a strategy where the stiffness (Young's Modulus) varies spatially across the component height.
+\end{quote}
+
+\subsection{Concept: Variable Stiffness Mapping}
+The core hypothesis of this module is that assuming a homogeneous material property (single $E$ and $\nu$) might introduce errors if the manufacturing process (e.g., welding or cladding) significantly alters the local stiffness. The module attempts to discretize the domain into "material stripes" with varying elastic moduli.
+
+\subsection{Component Architecture}
+
+\subsubsection{1. Multi-Material Builder}
+\textbf{Script:} \texttt{REA\_Extended\_E.py}
+
+This script extends the standard geometry generator to support material partitioning.
+\begin{itemize}
+    \item \textbf{Class \texttt{MultiMaterialContourAnalysis}:} 
+    Inherits from the standard extended analysis but adds logic to partition the geometry vertically.
+    \item \textbf{Dynamic Partitioning:} 
+    The method \texttt{partition\_geometry\_2} slices the T-shape into $N$ horizontal layers (defined by \texttt{num\_divisions}).
+    \item \textbf{Stiffness Scaling:} 
+    The method \texttt{assign\_different\_materials} iterates through these partitions and creates unique Abaqus Material definitions for each. It applies a scaling factor to the Young's Modulus:
+    \begin{equation}
+        E_{layer\_i} = \frac{E_{base}}{Scale^i}
+    \end{equation}
+    This effectively creates a gradient of stiffness along the height of the sample, allowing for the simulation of material degradation or transition zones.
+\end{itemize}
+
+\subsubsection{2. Standalone INP Injector}
+\textbf{Script:} \texttt{Set\_Creator\_Inp.py}
+
+Unlike the main pipeline which relies on the integrated \texttt{\_inp\_modules}, this experimental branch uses a specialized, standalone class for file manipulation.
+\begin{itemize}
+    \item \textbf{Class \texttt{InpStressUpdater}:} 
+    It parses the generated `.inp` files as raw text. It identifies the target instance and manually injects:
+    \begin{enumerate}
+        \item \texttt{*Elset} definitions corresponding to the stress map.
+        \item \texttt{*Initial Conditions, type=STRESS} blocks derived from external CSV data.
+        \item A rewritten \texttt{*Material} block that matches the specific properties required for the analysis.
+    \end{enumerate}
+\end{itemize}
+
+\subsubsection{3. Orchestration \& Visualization}
+\begin{itemize}
+    \item \textbf{Orchestrator (\texttt{REA\_Main\_E.py}):} 
+    Similar to other main scripts, it manages the batch execution. It specifically coordinates the \texttt{Nodes\_main} extraction and the `StressProcessor` mapping before triggering the \texttt{BatchInpStressUpdater} to modify the input files.
+    
+    \item \textbf{Plane Selection GUI (\texttt{ContourPlaneGUI.py}):} 
+    Provides a visual interface (using \texttt{customtkinter} and \texttt{matplotlib}) for the user to define the cutting planes ($ZX, ZY$) and removal regions visually. This configuration is saved to a JSON file (\texttt{plane\_settings.json}) which drives the partitioning logic in the builder.
+\end{itemize}

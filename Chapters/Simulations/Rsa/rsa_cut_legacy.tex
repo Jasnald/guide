@@ -1,0 +1,46 @@
+\section{Legacy: Incremental Cutting Strategy}
+\label{sec:rsa_cut_legacy}
+
+\textbf{Module Path:} \texttt{src/Simulations/rsa\_cut/}
+
+\begin{quote}
+    \textbf{Deprecation Notice:} This module represents an experimental branch designed to validate the effects of multi-stage material removal. It is currently \textbf{deprecated} and not used in the production pipeline. The rationale for its discontinuation is detailed in Section \ref{sec:cut_limitations}.
+\end{quote}
+
+\subsection{Concept and Design}
+The scripts in this folder were developed using an earlier, monolithic class design (similar to the \texttt{attempt.py} prototype). The primary goal was to simulate the machining process not as a single instantaneous removal of volume, but as a sequence of discrete cutting steps.
+
+\textbf{Workflow Intention:}
+\begin{enumerate}
+    \item \textbf{Phased Removal:} Instead of removing the entire cut volume in one \texttt{Model Change} step, the simulation divides the removal region into multiple sub-sets (e.g., Layer 1, Layer 2, Layer 3).
+    \item \textbf{Sequential Solving:} The solver calculates the equilibrium state after removing Layer 1, propagates the stress/deformation, and then proceeds to remove Layer 2.
+    \item \textbf{Objective:} To verify if the stress redistribution path (history-dependent) significantly alters the final residual stress profile compared to a single-step removal.
+\end{enumerate}
+
+\subsection{Module Components}
+
+\begin{itemize}
+    \item \textbf{Builder (\texttt{REA\_Extended\_Cut.py}):} 
+    A comprehensive script that constructs the geometry and defines the multiple analysis steps. Unlike the modern Mixin architecture, this script handles meshing, partitioning, and step generation within a single class structure. It relies on a pre-defined JSON configuration to determine the slice planes.
+
+    \item \textbf{Orchestrator (\texttt{REA\_Main\_Cut.py}):} 
+    The execution entry point. It mimics the logic of the main RSA workflow but directs the pipeline to use the multi-step builder. It handles the integration with the Abaqus solver execution.
+
+    \item \textbf{Plane Configuration (\texttt{ContourPlaneGUI.py}):} 
+    A specific graphical interface designed to define the multiple cutting planes ($Z_1, Z_2, \dots, Z_n$) required to slice the removal volume into discrete chunks.
+\end{itemize}
+
+\subsection{Theoretical Limitations \& Discontinuation}
+\label{sec:cut_limitations}
+
+The project moved away from this approach due to a fundamental limitation in simulating machining processes using standard Static Implicit analysis with pre-defined meshes.
+
+\begin{enumerate}
+    \item \textbf{Static Equivalence:} 
+    In a linear elastic (or even standard elastic-plastic) static analysis, the final state of equilibrium depends primarily on the final boundary conditions. Removing volume $V$ in one step often yields the identical result to removing $V/2 + V/2$ in two steps, provided no complex path-dependent plasticity or contact friction is involved. The computational cost of multiple steps yielded no accuracy gain.
+
+    \item \textbf{The "Blind Cut" Problem:} 
+    A real machining process is interactive: as the tool cuts pass $N$, the workpiece distorts due to released stresses. The tool (moving in a rigid machine path) then cuts a different amount of material in pass $N+1$ relative to the distorted shape.
+    
+    \textit{Simulation Limitation:} In this Abaqus implementation, the "Volume to be Removed" is defined by element sets on the \textbf{undeformed} mesh. The simulation does not update the "tool path" relative to the current deformation. It simply deletes the pre-selected elements. Therefore, it fails to capture the physical phenomenon of the part distorting "away" from or "into" the cutting tool between steps.
+\end{enumerate}

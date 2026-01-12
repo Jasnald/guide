@@ -1,0 +1,36 @@
+\chapter{Experimental Data Management}
+\label{ch:exp_data}
+
+\textbf{Module Path:} \texttt{src/Exp\_Data/}
+
+This module serves as the central repository and configuration manager for the project. Its primary purpose is to bridge the gap between the physical experimental samples and their digital twins. By managing raw measurement data and simulation parameters, it ensures that the Finite Element models are generated based on the \textit{actual} mean dimensions of the manufactured specimens, rather than theoretical CAD values.
+
+\section{Module Architecture}
+
+The module is structured to support multiple experimental campaigns, isolating the data logic for each specific sample geometry.
+
+\subsection{Sub-Packages}
+\begin{itemize}
+    \item \textbf{Experiment 1 (\texttt{s1\_exp}):} 
+    Focuses on the standard T-Shape geometry used for the primary Residual Stress benchmark. It handles the averaging of flange and web measurements to define the parameterized model.
+    
+    \item \textbf{Experiment 2 (\texttt{s2\_exp}):} 
+    Dedicated to the Profile/Milling experiment. It manages the dimensions for the milling plate and the specific cut geometries required for the sensitivity analysis (to be detailed in subsequent sections).
+\end{itemize}
+
+\subsection{Core Functionalities}
+Across both experiments, the module provides three key services to the framework:
+
+\begin{enumerate}
+    \item \textbf{Dimensional Averaging:} 
+    Scripts like \texttt{sample\_dim.py} and \texttt{mean\_dim.py} ingest lists of raw caliper measurements (e.g., widths, thicknesses at multiple points) and calculate the statistical mean. These values are then exported as a dictionary to be consumed by the Geometry Generators.
+    
+    \item \textbf{Configuration Management:} 
+    The \texttt{write\_input.py} script defines the schema for the \texttt{config.json} file. It validates parameters such as Young's Modulus, mesh density ranges, and directory paths, ensuring the simulation pipeline receives valid inputs.
+    
+    \item \textbf{User Interface (GUI):} 
+    To facilitate parameter tuning without editing JSON files manually, the module includes a graphical interface (\texttt{write\_input\_gui.py}). This tool allows users to modify material properties, define DOE ranges (Design of Experiments), and save valid configurations visually.
+\end{enumerate}
+
+\input{Chapters/ExpData/e1}
+\input{Chapters/ExpData/e2}

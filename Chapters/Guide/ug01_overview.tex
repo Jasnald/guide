@@ -1,0 +1,31 @@
+\chapter{User's Guide: Step-by-Step Tutorial}
+\label{ch:user_guide}
+
+\section{Overview}
+This tutorial guides you through the complete Residual Stress Analysis workflow using the hybrid experimental-numerical framework.
+
+\textbf{Workflow Summary:}
+\begin{enumerate}
+    \item \textbf{Configuration ($\sim$20 min):} Define material properties and Design of Experiments (DOE) ranges.
+    \item \textbf{Contour Method Simulation ($\sim$10 min):} Reconstruct surface stresses from experimental data.
+    \item \textbf{Residual Stress Analysis ($\sim$10 min):} Simulate the stress redistribution during the cutting process.
+    \item \textbf{Visualization:} Analyze results using ParaView.
+\end{enumerate}
+
+\begin{quote}
+    \textbf{Note:} These time values are done considered one simulation with a mesh after the convergence of the result, which means 50 thousand elements.
+\end{quote}
+
+\textbf{Expected Outcome:} By the end of this guide, you will have XDMF/HDF5 files representing the full 3D stress tensor field, ready for post-processing.
+
+\section{Prerequisites}
+Before proceeding, ensure the following environment is set up:
+\begin{itemize}
+    \item \textbf{Abaqus 2021 or 2023:} Must be installed. The command \texttt{abq2021} (or equivalent) must be accessible via terminal or defined in the config.
+    \item \textbf{Python 3.10+:} Required for the pipeline orchestration.
+    \item \textbf{Dependencies:} Install required packages:
+    \begin{lstlisting}[language=bash]
+    pip install -r requirements.txt
+    \end{lstlisting}
+    \item \textbf{Project Structure:} Ensure the \texttt{src/} folder matches the architecture defined in Chapter \ref{ch:introduction}.
+\end{itemize}

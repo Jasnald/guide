@@ -1,0 +1,34 @@
+\section{Step 3: Residual Stress Analysis (RSA)}
+\label{sec:guide_rsa}
+
+\textbf{Goal:} Map the CM results onto a new geometry (machining state) and simulate stress redistribution.
+
+\subsection{Action: Execution}
+Open \texttt{src/Simulations/rs\_main.py} in your editor. Locate the \texttt{main()} call at the bottom and ensure the flags are set:
+
+\begin{lstlisting}[language=Python]
+if __name__ == "__main__":
+    # run_cma=False (Skip Step 2 if already done)
+    # run_rsa=True  (Execute this step)
+    main(run_cma=False, run_rsa=True)
+\end{lstlisting}
+
+Run the script:
+\begin{lstlisting}[language=bash]
+python src/Simulations/rs_main.py
+\end{lstlisting}
+
+\subsection{What is happening?}
+\begin{enumerate}
+    \item \textbf{Geometry Gen:} The script creates new `.inp` files for the RSA geometry.
+    \item \textbf{Mapping:} It uses a KDTree algorithm to interpolate stress tensors from the CM mesh to the RSA mesh.
+    \item \textbf{Injection:} It modifies the input files to add \texttt{*Initial Conditions, type=STRESS}.
+\end{enumerate}
+
+\subsection{Verification}
+Navigate to the \texttt{REA\_Directory} (e.g., \texttt{C:/Simulation/Residual\_Stresses\_Analysis}).
+\begin{itemize}
+    \item Look for the \texttt{Output} folder.
+    \item Ensure that for each case, a \texttt{stress\_input.txt} or similar CSV file exists (this proves mapping was successful).
+    \item Check if the final \texttt{.odb} files are generated in the job folders.
+\end{itemize}

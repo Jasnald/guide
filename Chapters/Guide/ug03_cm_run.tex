@@ -1,0 +1,27 @@
+\section{Step 2: Contour Method (CM) Simulation}
+\label{sec:guide_cm}
+
+\textbf{Goal:} Run the inverse calculation to reconstruct boundary conditions and solve for surface stresses.
+
+\subsection{Action: Execution}
+Run the main orchestrator from the project root:
+
+\begin{lstlisting}[language=bash]
+python src/Simulations/cm_main.py
+\end{lstlisting}
+
+The terminal will display progress logs: \texttt{[INFO] Processing Case: Mesh-0\_8--Length-50...}
+
+\subsection{Result Verification}
+Since the pipeline is automated, the system ensures data consistency before saving. Upon completion, you can locate the results in the \texttt{CM\_Directory} defined in your configuration.
+
+\textbf{Generated Outputs:}
+\begin{enumerate}
+    \item \textbf{Data Files:} Navigate to the \texttt{/xdmf\_hdf5\_files/} folder. You will find the converted results for each DOE case:
+    \begin{itemize}
+        \item \texttt{.xdmf} (Metadata for ParaView)
+        \item \texttt{.h5} (Heavy data storage)
+    \end{itemize}
+
+    \item \textbf{Execution Logs:} Review \texttt{summary\_report.txt} to see the execution time for each simulation case.
+\end{enumerate}

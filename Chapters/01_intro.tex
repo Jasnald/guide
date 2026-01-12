@@ -1,21 +1,38 @@
 \chapter{Introduction}
 \label{ch:introduction}
 
-This software suite is designed to process, analyze, and visualize 3D measurement data obtained from surface scanning of physical samples, specifically T-shaped metal specimens. The toolkit addresses common challenges in metrology data processing, including noise reduction, outlier detection, surface fitting, and 3D reconstruction.
+This software suite constitutes a comprehensive framework for the automated analysis of Residual Stresses (RS) using the Contour Method (CM) and Finite Element Analysis (FEA). It bridges the gap between physical metrology and digital simulation, providing an end-to-end workflow that processes raw surface measurements, generates data-driven boundary conditions, and orchestrates complex simulations in Abaqus.
 
-\section{Purpose}
+\section{Context and Purpose}
 
-Raw measurement data from coordinate measuring machines (CMMs) or optical scanners typically contains:
+The evaluation of residual stresses in manufactured components—specifically via the Contour Method—requires a rigorous integration of experimental data into numerical models. The traditional workflow faces several challenges:
+
 \begin{itemize}
-    \item Measurement noise and systematic errors
-    \item Thousands of unstructured data points
-    \item Inconsistencies between multiple measurements
+    \item \textbf{Data Noise:} Raw surface scans from CMMs or optical scanners contain high-frequency noise and outliers that must be filtered before analysis.
+    \item \textbf{Complex Mapping:} Translating a measured 2D surface topography into 3D nodal boundary conditions for FEA is mathematically non-trivial.
+    \item \textbf{Simulation Bottlenecks:} Setting up parametric studies (e.g., varying mesh density or cut length) in commercial solvers like Abaqus is labor-intensive and error-prone when done manually.
+    \item \textbf{Data Fragmentation:} Results are often scattered across proprietary formats (ODB), spreadsheets, and raw text files, hindering correlation analysis.
 \end{itemize}
 
-This toolset provides a systematic workflow to:
-\begin{enumerate}
-    \item Clean and organize raw measurement data
-    \item Fit mathematical surface models to point clouds
-    \item Generate statistical analysis and visualizations
-    \item Reconstruct regularized surface models for further analysis or simulation
-\end{enumerate}
+\section{System Architecture}
+
+To address these challenges, this framework is architected into two primary domains, managed by a central configuration core.
+
+\subsection{Part I: Data Preparation \& Conversion}
+This domain handles the "Digital Twin" aspect of the samples:
+\begin{itemize}
+    \item \textbf{Preprocessing:} Algorithms to clean point clouds, align measurement axes, and fit polynomial surfaces to experimental data (Chapter \ref{part:prep}).
+    \item \textbf{Data Standardization:} A unified pipeline that converts proprietary Abaqus outputs (ODB) into open scientific formats (HDF5/XDMF) for streamlined post-processing (Chapter \ref{ch:conversor}).
+    \item \textbf{Experimental Database:} A central repository (\texttt{Exp\_Data}) that stores the statistical mean dimensions of physical samples, ensuring simulations match the manufactured reality (Chapter \ref{ch:exp_data}).
+\end{itemize}
+
+\subsection{Part II: Automated Simulation Pipeline}
+This domain acts as the computational engine:
+\begin{itemize}
+    \item \textbf{Orchestration:} A high-level Python pipeline that manages the entire lifecycle of a simulation batch—from directory creation to job submission (Chapter \ref{ch:pipeline_core}).
+    \item \textbf{Abaqus Scripting Interface (ASI):} A modular, object-oriented framework that runs inside the Abaqus kernel to procedurally generate geometries, meshes, and analysis steps (Chapter \ref{ch:abaqus_modules}).
+    \item \textbf{Hybrid Workflows:} Specialized solvers for the \textbf{Contour Method} (calculating stress from deformation) and \textbf{Residual Stress Analysis} (simulating redistribution after material removal), including the mapping of stress fields between dissimilar meshes (Chapter \ref{ch:rs_workflow}).
+\end{itemize}
+
+\section{Scope of this Manual}
+This document details the internal structure, logic, and usage of the software modules. It is intended for developers and researchers aiming to extend the framework or understand the specific algorithms used for stress reconstruction and mapping.
