@@ -1,0 +1,23 @@
+\section{Data Structures and Configuration}
+\label{sec:inp_structures}
+
+\textbf{Script:} \texttt{dataclasses.py}
+
+To decouple the Python logic from the specific formatting of Abaqus input files, this module defines strongly-typed data structures (using Python's \texttt{@dataclass}). These classes act as intermediate representations for the physical entities and execution configurations.
+
+\subsection{Finite Element Entities}
+\begin{itemize}
+    \item \textbf{Node:} Represents a geometric point in 3D space with an ID (label) and coordinates $(x, y, z)$.
+    \item \textbf{Element:} Stores the mesh topology, linking an ID (label) to a list of constituent \texttt{Node} IDs and defining the element type (e.g., C3D8R).
+    \item \textbf{SectionProperties:} Abstract container for physical properties associated with element sets. It distinguishes between \texttt{Solid} (homogeneous) and \texttt{Shell} sections, storing critical thickness parameters needed for stress calculation integration points.
+\end{itemize}
+
+\subsection{Execution Configuration}
+\textbf{Class:} \texttt{AbaqusJobConfig}
+
+This class encapsulates all parameters required to launch an Abaqus solver job via the command line. It includes:
+\begin{itemize}
+    \item \textbf{Resource Allocation:} Number of CPUs (\texttt{n\_cpus}) and memory percentage (\texttt{memory}).
+    \item \textbf{Environment Settings:} Path to the Abaqus executable and scratch directory usage.
+    \item \textbf{Job Control:} Timeout limits (default 30 hours) to prevent stalled processes from hanging the pipeline indefinitely.
+\end{itemize}

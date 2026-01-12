@@ -1,0 +1,20 @@
+\section{Stage 3: Field Interpolation}
+\label{sec:ep_interpolation}
+
+\textbf{Script:} \texttt{s3\_RE\_Interpolator.py}
+
+The final stage maps the generated or measured stress field onto the target finite element mesh. This is critical because the source data (cloud of points) rarely matches the exact centroid locations of the simulation elements.
+
+\subsection{Interpolation Logic}
+The class \texttt{ElementTensionInterpolator} manages the transfer:
+
+\begin{itemize}
+    \item \textbf{Linear Interpolation (Primary):} 
+    Uses \texttt{scipy.interpolate.LinearNDInterpolator} to estimate stress values at element centroids based on the surrounding source points. This method respects the gradients of the field.
+    
+    \item \textbf{Nearest Neighbor (Fallback):} 
+    For elements falling outside the convex hull of the source data (edges/corners), the script falls back to \texttt{NearestNDInterpolator} to avoid NaN values, ensuring robust mapping for the entire mesh.
+\end{itemize}
+
+\subsection{Output}
+The result is a formatted text file containing the interpolated stress tensor for every element, ready to be imported into Abaqus as an Initial Condition (Predefined Field).

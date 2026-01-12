@@ -1,0 +1,31 @@
+\chapter{Automation Pipeline Core}
+\label{ch:pipeline_core}
+
+\textbf{Module Path:} \texttt{src/Simulations/pipeline/}
+
+This module functions as the high-level orchestration layer for the entire simulation framework. While individual scripts (like \texttt{cm\_main.py}) define the specific physics of an experiment, the \texttt{pipeline} module handles the "logistics": directory management, configuration loading, tool chaining, and execution flow control.
+
+\textbf{Architectural Stability:} This module is designed as a closed, stable framework. It provides the standardized infrastructure upon which specific simulation scripts are built. \textbf{Users are typically not expected to modify these files}, as changes here affect the global behavior of all simulation types.
+
+\section{Core Responsibilities}
+
+The pipeline abstracts repetitive tasks into reusable components, ensuring consistency across different experimental modules (Module A, Module B, etc.).
+
+\begin{itemize}
+    \item \textbf{Configuration Management (\texttt{config.py}):} 
+    Centralizes the loading and validation of the global \texttt{config.json}. It ensures that all paths, parameters, and flags are correctly propagated to the solvers.
+    
+    \item \textbf{Process Abstraction (\texttt{processors.py}, \texttt{converters.py}):} 
+    Wraps the lower-level tools (such as the Element Extractor or the ODB Converter) into unified Python classes. This allows the main simulation scripts to call complex operations via simple methods like \texttt{processor.run()}.
+    
+    \item \textbf{Workspace Management (\texttt{generator.py}, \texttt{clear\_dir.py}):} 
+    Automates the creation of standardized directory structures (Input/Output/Post) and handles cleanup tasks, ensuring a pristine environment for each simulation batch.
+    
+    \item \textbf{Data Standardization (\texttt{dataclass.py}):} 
+    Defines strict data contracts for passing information between stages, reducing the risk of type errors or missing parameters during complex multi-step simulations.
+\end{itemize}
+
+\input{Chapters/Simulations/Pipeline/Infrastructure}
+\input{Chapters/Simulations/Pipeline/Convertion}
+\input{Chapters/Simulations/Pipeline/Generation}
+\input{Chapters/Simulations/Pipeline/Processors}

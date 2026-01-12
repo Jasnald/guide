@@ -1,0 +1,33 @@
+\section{Stage 1: Element Extraction}
+\label{sec:ep_extraction}
+
+\textbf{Script:} \texttt{s1\_Ele\_Extractor.py}
+
+The first stage of the pipeline converts the unstructured text data from Abaqus input files into structured tabular data (CSV/Pandas DataFrames) suitable for mathematical processing.
+
+\subsection{Input Parsing Logic}
+The script manually parses the \texttt{.inp} text format to identify geometric definitions:
+
+\begin{itemize}
+    \item \textbf{Element Parsing:} 
+    The function \texttt{extract\_elements\_from\_inp} scans for the \texttt{*ELEMENT} keyword. It extracts the Element ID, the Element Type (e.g., C3D8R), and the list of connected Node IDs that define the element's topology.
+    
+    \item \textbf{Coordinate Extraction:} 
+    A companion function (referenced as \texttt{extract\_node\_coordinates}) retrieves the spatial $(X, Y, Z)$ coordinates for every node defined under the \texttt{*NODE} keyword.
+\end{itemize}
+
+\subsection{Geometry Calculation}
+To facilitate field interpolation, the script calculates the **centroid** of each element.
+\begin{equation}
+    C_{elem} = \frac{1}{N} \sum_{i=1}^{N} P_{node\_i}
+\end{equation}
+Where $P_{node\_i}$ are the coordinates of the nodes connected to the element. This reduces the element to a single point in space $(X_{center}, Y_{center}, Z_{center})$.
+
+\subsection{Output}
+The processed data is saved to the output directory as a tab-separated file containing:
+\begin{itemize}
+    \item Element ID
+    \item Element Type
+    \item Centroid Coordinates ($X, Y, Z$)
+\end{itemize}
+This file serves as the geometric basis for the subsequent stress field generation.

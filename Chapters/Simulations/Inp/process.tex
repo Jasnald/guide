@@ -1,0 +1,44 @@
+\section{Geometry Interpretation and Processing}
+\label{sec:inp_geometry}
+
+\textbf{Script:} \texttt{process.py}
+
+While the parsing module handles the text syntax, this module is responsible for reconstructing the semantic meaning of the finite element model. It links abstract element definitions to physical properties and provides spatial filtering capabilities.
+
+\subsection{Entity Extraction}
+\textbf{Class:} \texttt{ReadEntities}
+
+This class performs a linear scan of the input file to build the core mesh database:
+\begin{itemize}
+    \item \textbf{Node Parsing:} Reads \texttt{*NODE} blocks to populate \texttt{Node} objects with spatial coordinates $(x,y,z)$.
+    \item \textbf{Element Parsing:} Reads \texttt{*ELEMENT} blocks. It extracts the element type (e.g., C3D8R) and the connectivity list (the sequence of nodes defining the element).
+    \item \textbf{Set Extraction:} The \texttt{read\_nset} method parses \texttt{*NSET} definitions, allowing the system to identify subsets of nodes referenced by boundary conditions or output requests.
+\end{itemize}
+
+\subsection{Physical Property Mapping}
+\textbf{Class:} \texttt{SectionReader}
+
+Abaqus defines properties (like thickness or material assignment) on "Element Sets", not on individual elements. This class resolves this indirection:
+\begin{enumerate}
+    \item \textbf{Section Discovery:} It scans for \texttt{*SOLID SECTION} and \texttt{*SHELL SECTION} keywords to identify which Element Sets define the physics of the model.
+    \item \textbf{Property Extraction:} For shells, it extracts the defined thickness and number of integration points.
+    \item \textbf{Element-Level Mapping:} It iterates through the model's \texttt{*ELSET} definitions to create a direct map:
+    \begin{equation}
+        \text{Map}(ElementID) \rightarrow \text{SectionProperties}
+    \end{equation}
+    This is critical for stress integration, as the software needs to know if an element is a thin shell (requires thickness integration) or a solid (centroid only).
+\end{enumerate}
+
+\subsection{Spatial Filtering}
+\textbf{Classes:} \texttt{RegionFilter}, \texttt{RegionElementExtractor}
+
+For localized analysis (e.g., analyzing only the weld bead region), processing the entire mesh is inefficient. These classes implement a bounding-box filter:
+
+\begin{itemize}
+    \item \textbf{Centroid Calculation:} For every element, the geometric center is computed based on its constituent nodes.
+    \item \textbf{Box Logic:} Elements are retained only if their centroid falls within the specified window:
+    \begin{equation}
+        x_{min} \leq c_x \leq x_{max} \quad \text{and} \quad y_{min} \leq c_y \leq y_{max}
+    \end{equation}
+    \item \textbf{Type Filtering:} Optionally filters by element type (e.g., keeping only "C3D" elements to ignore 2D dummy elements).
+\end{itemize}

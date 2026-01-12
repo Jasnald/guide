@@ -1,0 +1,21 @@
+\section{Stage 2: ODB Data Extraction (Abaqus API)}
+\label{sec:conv_extraction}
+
+\textbf{Script:} \texttt{Odb\_Npz\_Converter.py}
+
+This script runs within the Abaqus Python 2.7 environment. Its primary function is to deconstruct the finite element model into raw NumPy arrays (`.npy`), isolating the proprietary dependency from the rest of the pipeline.
+
+\subsection{Geometry Extraction}
+The converter aggregates mesh data from specified instances into a global coordinate system.
+\begin{itemize}
+    \item \textbf{Node Mapping:} Abaqus node labels are not necessarily sequential or zero-indexed. The script creates a mapping dictionary \texttt{node\_mapping} to translate arbitrary Abaqus labels (e.g., Node 105) into sequential array indices (e.g., Index 0) for the output arrays.
+    \item \textbf{Topology:} It extracts element connectivity and offsets, converting them into the flat array format required by visualization standards.
+\end{itemize}
+
+\subsection{Field Output Processing}
+The method \texttt{\_process\_temporal\_data\_optimized} iterates through simulation steps and frames to extract physical results.
+\begin{itemize}
+    \item \textbf{Optimization:} To manage memory usage for large models, data is processed in "chunks" and saved immediately to disk, rather than holding the entire history in RAM.
+    \item \textbf{Invariants:} The script leverages pre-calculated Abaqus invariants (Mises, Max Principal) when available in the \texttt{bulkDataBlocks}. This avoids manual recalculation and ensures consistency with Abaqus viewer results.
+    \item \textbf{Thresholding:} A \texttt{stress\_threshold} (default $10^{-6}$) is applied to filter out numerical noise. Values below this threshold are set to zero.
+\end{itemize}

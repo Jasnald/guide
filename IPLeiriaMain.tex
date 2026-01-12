@@ -1,0 +1,87 @@
+% Author Name: José Areia 
+% Author Contact: jose.apareia@gmail.com
+% Version: 2.2.13 - 2026/01/06
+% Public Repository: https://github.com/joseareia/ipleiria-thesis
+% Wiki/Getting Help: https://github.com/joseareia/ipleiria-thesis/wiki
+
+%%% Document Options %%%
+\documentclass[
+    language=english,
+    school=estg,
+    docstage=final,
+    media=paper,
+    bookprint=false,
+    linkcolor=red!45!black,
+    chapterstyle=classic,
+    coverstyle=classic,
+    aiacknowledgement=true,
+    listprefix=false
+]{IPLeiriaThesis} % Refer to the Wiki for a list of available options.
+
+%%% Document Version %%%
+\DocumentVersion{1.0.0} % Required only if the 'docstage' is set to 'working'.
+
+%%% Document Metadata %%%
+\input{Metadata/Metadata}
+
+%%% Loading of Glossary and Acronyms %%%
+%\makeglossaries
+%\loadglsentries{Matter/05-Glossary}
+%\loadglsentries[\acronymtype]{Matter/06-Acronyms}
+%\loadglsentries[\symboltype]{Matter/07-Symbols}
+
+
+\begin{document}
+
+% --- Front Matter ---
+\frontmatter
+
+% Cover page (gerada automaticamente)
+\makecover
+
+% Table of Contents
+\tableofcontents
+
+% List of Figures (opcional - comente se não precisar)
+% \listoffigures
+
+% List of Tables (opcional - comente se não precisar)
+% \listoftables
+
+% List of Code Listings (opcional - comente se não precisar)
+% \lstlistoflistings
+
+% --- Abstract (opcional - comente se não precisar) ---
+% \begin{abstract}
+% This manual provides comprehensive documentation for the Surface Measurement 
+% Analysis Tool, covering preprocessing, conversion, processing, and simulation 
+% capabilities.
+% \end{abstract}
+
+% ==============================================================================
+% MAIN CONTENT
+% ==============================================================================
+
+% \mainmatter
+
+% --- Your Chapters ---
+\input{Chapters/01_intro}
+\input{Chapters/Preprocess}
+\input{Chapters/Conversor}
+\input{Chapters/ElementProcess}
+\input{Chapters/Simulations}
+% ==============================================================================
+% BACK MATTER
+% ==============================================================================
+
+%\backmatter
+
+% --- Bibliography (se você tiver) ---
+% \bibliographystyle{plain}
+% \bibliography{Bibliography/references}
+
+% --- Appendices (se você tiver) ---
+% \appendix
+% \input{Appendices/appendixA}
+
+\end{document}

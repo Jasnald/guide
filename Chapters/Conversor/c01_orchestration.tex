@@ -1,0 +1,21 @@
+\section{Stage 1: Configuration and Orchestration}
+\label{sec:conv_orchestration}
+
+\textbf{Scripts:} \texttt{Odb\_Npz\_Parameters.py}, \texttt{ODB\_2\_XDMF.py}
+
+The conversion process is initiated by the orchestration layer, which manages configuration loading, directory discovery, and batch processing logic.
+
+\subsection{Parameter Management}
+The class \texttt{ODB2NPYParameters} acts as the bridge between the project's global \texttt{config.json} and the conversion scripts.
+\begin{itemize}
+    \item \textbf{Config Loading:} It reads the global configuration to determine the root directories for specific simulation methods (e.g., "Contour Method").
+    \item \textbf{Output Paths:} It automatically defines the output structure, creating a \texttt{npy\_files} directory within the simulation folder to store intermediate results.
+\end{itemize}
+
+\subsection{Batch Processing}
+The \texttt{OdbBatchConverter} class handles the iteration over multiple simulation files:
+\begin{itemize}
+    \item \textbf{Discovery:} It scans the target directory for all files ending in \texttt{.odb}.
+    \item \textbf{Structure Inspection:} Before conversion, it can inspect the ODB to list available Steps and Instances (nodes/elements counts), helping to validate the file integrity.
+    \item \textbf{Unicode Handling:} It includes a \texttt{safe\_str\_convert} utility to handle potential encoding issues when passing file paths between modern Python environments and the older Abaqus Python kernel.
+\end{itemize}

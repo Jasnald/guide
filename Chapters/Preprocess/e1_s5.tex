@@ -1,0 +1,59 @@
+\section{Stage 5: Surface Reconstruction}
+\label{sec:stage5}
+
+\textbf{Script:} \texttt{s5\_Rebuild.py}
+
+The final stage of the preprocessing pipeline transforms the abstract mathematical models derived in Stage 4 back into a discrete, tangible geometry. This script generates a structured grid of points representing the T-shaped sample, with surface topography defined by the averaged polynomial equation.
+
+\subsection{Purpose and Functionality}
+
+While raw measurement data consists of unstructured scatter plots, simulation software (FEA) often requires structured meshes. This script performs three key geometric operations:
+
+\subsubsection{1. Geometric Definition (Shapely)}
+The script defines the ideal boundaries of the T-shaped sample using the \texttt{Shapely} library. It constructs the geometry by uniting two polygonal rectangles:
+\begin{itemize}
+    \item \textbf{Horizontal Bar:} Defined from $(0,0)$ to $(h_{width}, h_{thickness})$.
+    \item \textbf{Vertical Bar:} Positioned with specific offsets relative to the horizontal bar.
+\end{itemize}
+The function \texttt{create\_t\_polygon\_shapely} ensures the boundaries form a valid, continuous T-shape.
+
+\subsubsection{2. Regular Grid Generation}
+Inside these boundaries, the script generates a clean mesh. The function \texttt{generate\_points\_in\_shape\_via\_divisions} subdivides the geometry into a regular grid:
+\begin{itemize}
+    \item It calculates discrete points ($x, y, 0$) based on a configurable density ($N_x, N_y$).
+    \item It automatically removes duplicate points where the vertical and horizontal bars overlap to prevent mesh errors.
+\end{itemize}
+
+\subsubsection{3. Z-Coordinate Assignment}
+For every point in the generated grid, the script calculates the height ($Z$) using the parameters from the "Final Average" surface.
+\begin{equation}
+    Z_{point} = P_{average}(x_{grid}, y_{grid}) \times \text{Scaling Factor}
+\end{equation}
+\textbf{Note on Units:} The script includes a scaling operation in \texttt{update\_points\_with\_parameters} (currently set to $\times 100$), which converts the Z-values (typically in meters from the polynomial calculation) into the desired unit (e.g., centimeters) for the output file.
+
+\subsection{Usage}
+
+To generate the reconstructed surface, run:
+
+\begin{lstlisting}[language=Bash]
+python s5_Rebuild.py
+\end{lstlisting}
+
+\textbf{Input:} The script looks for \texttt{Final\_Average\_\_5\_average\_subtraction.json} (hardcoded in \texttt{read\_parameters\_from\_file}).
+
+\textbf{Output:} Saves a file \texttt{Avearege\_\_Rebuild.json} containing the structured point cloud ready for simulation import.
+
+\subsection{Configuration}
+
+Users can adjust the mesh density and geometry through the following parameters in the \texttt{main()} function:
+
+\begin{itemize}
+    \item \textbf{Mesh Density Factor (\texttt{n\_factor}):} 
+    \begin{lstlisting}[language=Python]
+    n_factor = 1  # Multiplier for point density
+    \end{lstlisting}
+    Increasing this value (e.g., to 2 or 5) proportionally increases the number of divisions ($N_x, N_y$) in both the horizontal and vertical bars, resulting in a finer resolution mesh.
+
+    \item \textbf{Sample Dimensions:} 
+    The physical dimensions of the T-shape are imported from \texttt{Exp\_Data.s1\_exp.mean\_dim}. To reconstruct a sample with different proportions, the dimensions in that external module must be updated.
+\end{itemize}

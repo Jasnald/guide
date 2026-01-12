@@ -1,0 +1,43 @@
+\section{Stage 2: Visual Inspection and Manual Refinement}
+\label{sec:exp2_stage2}
+
+\textbf{Script:} \texttt{s2\_Outline\_gui.py}
+
+Following the automated IQR filtering, the profile data often requires a final manual pass to remove artifacts such as loose chips or measurement spikes that statistical methods failed to catch. This stage utilizes a lightweight GUI to allow operators to interactively "prune" the profile.
+
+
+\subsection{Smart Data Loading}
+
+The script is designed to automatically pick up where the previous stage left off. It scans the output directory and selects the input file based on a specific hierarchy:
+\begin{enumerate}
+    \item \textbf{Priority 1:} The highest numbered iteration file (e.g., \texttt{Sample1\_Iter3.json}).
+    \item \textbf{Priority 2:} If no iterations exist, it falls back to the average file (\texttt{Sample1\_Average.json}).
+\end{enumerate}
+This ensures that the user is always editing the most refined version of the dataset available.
+
+\subsection{Interaction Logic: Pixel-Based Deletion}
+
+Unlike the coordinate-based thresholding used in other modules, this viewer employs a \textbf{screen-space interaction model} for point removal. This approach is more intuitive for visual cleaning, as it depends on what the user \textit{sees} rather than the physical scale of the data.
+
+When the user clicks on the plot:
+\begin{enumerate}
+    \item The script transforms the physical coordinates $(x, y)$ of all points into screen coordinates $(px, py)$ using the matplotlib transformation \texttt{ax.transData.transform}.
+    \item It calculates the Euclidean distance in pixels between the mouse click and every data point:
+    \begin{equation}
+        d_{pix} = \sqrt{(px_{point} - px_{click})^2 + (py_{point} - py_{click})^2}
+    \end{equation}
+    \item If the minimum distance is less than the threshold (configured to \textbf{10 pixels}), the closest point is deleted.
+\end{enumerate}
+
+\subsection{Usage and Output}
+
+\begin{lstlisting}[language=Bash]
+python s2_Outline_gui.py
+\end{lstlisting}
+
+\textbf{Controls:}
+\begin{itemize}
+    \item \textbf{Sample Selection:} A dropdown menu allows quick switching between samples found in the directory.
+    \item \textbf{Visual Aids:} Users can toggle "Equal aspect" to see the true physical proportion of the profile or adjust point size/color for better visibility of defects.
+    \item \textbf{Save:} Clicking "Save Modified Data" writes the current state to a new file suffixed with \texttt{\_Modified.json}. This preserves the original automated output for traceability.
+\end{itemize}

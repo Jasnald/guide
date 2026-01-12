@@ -1,0 +1,41 @@
+\section{Model Modification and Injection}
+\label{sec:inp_modification}
+
+\textbf{Script:} \texttt{modifier.py}
+
+This module acts as the "injector" engine of the library. It is responsible for generating valid Abaqus command blocks (like Element Sets or Initial Conditions) and surgically inserting them into an existing input deck without breaking the file structure.
+
+\subsection{Content Generators}
+These classes transform raw data into Abaqus-formatted strings:
+
+\begin{itemize}
+    \item \textbf{\texttt{InitialStressGenerator}:} 
+    Takes a dictionary of stress tensors and formats them into an \texttt{*Initial Conditions, type=STRESS} block. It iterates through each element and its integration points, ensuring the correct CSV format required by the solver.
+    
+    \item \textbf{\texttt{ElsetGenerator}:} 
+    Automatically creates \texttt{*Elset} definitions for the elements receiving stress. This is crucial because Abaqus applies initial conditions to specific element sets, not global IDs.
+
+    \item \textbf{\texttt{BCGenerator}:} 
+    Generates \texttt{*Boundary} cards for displacement control. It calculates the necessary nodal displacements (e.g., to deform a mesh to match a specific shape) and formats them as \texttt{Type: Displacement/Rotation} conditions.
+\end{itemize}
+
+\subsection{Intelligent Insertion Logic}
+\textbf{Class:} \texttt{INPInserter}
+
+Modifying an INP file requires placing commands in specific sections (e.g., Assembly vs. Step level). The inserter implements context-aware logic:
+
+\begin{itemize}
+    \item \textbf{\texttt{insert\_initial\_stresses}:} 
+    Scans the file for the first \texttt{*Step} keyword. It injects the stress block \textit{before} the step begins, effectively setting the initial state of the simulation. It also handles merging with existing \texttt{*Predefined Fields} if present.
+    
+    \item \textbf{\texttt{insert\_elsets}:} 
+    Locates the \texttt{*End Assembly} marker to inject element sets inside the assembly definition but outside of instance definitions, ensuring global visibility.
+    
+    \item \textbf{\texttt{replace\_material\_block}:} 
+    A robust method to update material properties. It finds a material definition by name and replaces its entire block (Elastic, Plastic, Density) while preserving the rest of the file structure. It detects the end of a material block by looking for "Block Breaker" keywords like \texttt{*Step} or \texttt{*Boundary}.
+\end{itemize}
+
+\subsection{High-Level Writer}
+\textbf{Class:} \texttt{StressINPWriter}
+
+This class encapsulates the entire read-modify-write cycle. It orchestrates the readers, generators, and inserters to produce a final, runnable Abaqus input file with the applied residual stress fields.

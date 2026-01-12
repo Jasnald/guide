@@ -1,0 +1,21 @@
+\section{Stage 3: XDMF/HDF5 Compilation}
+\label{sec:conv_compilation}
+
+\textbf{Script:} \texttt{Npy\_2\_Xdmf.py}
+
+The final stage takes the fragmented `.npy` files generated in Stage 2 and compiles them into a single, high-performance hierarchical file format suitable for ParaView and the viewer made by the autor.
+
+\subsection{HDF5 Hierarchical Structure}
+The \texttt{Npy2XdmfConverter} builds a binary HDF5 file (\texttt{S\_batch.h5}) organized by model:
+\begin{itemize}
+    \item \texttt{/ModelName/geometry/}: Stores the \texttt{coordinates} and \texttt{connectivity} arrays.
+    \item \texttt{/ModelName/topology/}: Stores \texttt{element\_types} and \texttt{offsets}.
+    \item \texttt{/ModelName/time\_series/}: A nested structure storing field data (Displacement, Stress) organized by Step and Frame.
+\end{itemize}
+
+\subsection{XDMF Wrapper Generation}
+To make the HDF5 data readable, the script generates an XML wrapper (\texttt{S\_batch.xdmf}).
+\begin{itemize}
+    \item \textbf{Temporal Grid:} It defines a `GridType="Collection"` with `CollectionType="Temporal"`. This links specific simulation times to the static geometry and dynamic field datasets in the HDF5 file.
+    \item \textbf{Data Precision:} It handles precision types explicitly, defining Geometry as \texttt{Float} (Double precision) and Topology as \texttt{Int}, ensuring correct interpretation by visualization software.
+\end{itemize}

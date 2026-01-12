@@ -1,0 +1,67 @@
+\section{Stage 3: Mathematical Surface Fitting}
+\label{sec:stage3}
+
+\textbf{Script:} \texttt{s3\_Plane\_process.py}
+
+Once the point cloud data is cleaned, the next step is to generate a continuous mathematical definition of the surface. This module performs regression analysis using two distinct polynomial bases to determine the optimal fit.
+
+\subsection{How it Works}
+
+The script processes every identified measurement side by testing polynomial degrees from 1 up to a configured maximum (default: 10). It utilizes two different mathematical approaches:
+
+\subsubsection{1. Standard Polynomial Fit}
+The standard fit in this implementation models the surface as a sum of independent powers of X and Y.
+\begin{equation}
+    Z(x,y) = \sum_{k=1}^{n} (a_k x^k + b_k y^k) + c
+\end{equation}
+The regression matrix is built by appending columns for $x^k$ and $y^k$ sequentially. This method is computationally lighter but assumes features are aligned with the primary axes.
+
+\subsubsection{2. Chebyshev Polynomial Fit}
+The Chebyshev method uses orthogonal polynomials of the first kind, $T_n(x)$. Unlike the standard fit, this implementation uses a **tensor product** basis, capturing cross-coupled features ($xy$) more effectively:
+\begin{equation}
+    Z(x,y) = \sum_{i=0}^{n} \sum_{j=0}^{n} c_{ij} T_i(x_{norm}) T_j(y_{norm})
+\end{equation}
+Crucially, this method requires **coordinate normalization**:
+\begin{itemize}
+    \item The script maps raw $x, y$ coordinates to the range $[-1, 1]$ via the \texttt{normalize\_data} function before fitting.
+    \item This prevents numerical instability (Runge's phenomenon) at higher polynomial degrees.
+\end{itemize}
+
+\subsubsection{Evaluation Metrics}
+For every degree and method, the script calculates:
+\begin{itemize}
+    \item \textbf{MSE (Mean Squared Error)}: The average squared deviation.
+    \item \textbf{RMSE (Root Mean Squared Error)}: The primary metric used to rank the quality of the fits.
+    \item \textbf{Max Error}: The single largest deviation found on the surface.
+\end{itemize}
+
+\subsection{Usage}
+
+Execute the script to process all cleaning results found in \texttt{Sample\_postprocess}:
+
+\begin{lstlisting}[language=Bash]
+python s3_Plane_process.py
+\end{lstlisting}
+
+\textbf{Process Flow:}
+\begin{enumerate}
+    \item \textbf{File Discovery:} The script uses \texttt{find\_latest\_iteration\_files} to ensure only the most recently modified cleaning data (from Stage 2) is used.
+    \item \textbf{Iterative Fitting:} It loops from degree 1 to 10.
+    \item \textbf{Comparison:} It compares Standard vs. Chebyshev RMSE and logs the percentage improvement.
+    \item \textbf{Output:} Results are saved to \texttt{Sample\_postprocess/Planes\_data/} as JSON files containing the coefficients and equation strings.
+\end{enumerate}
+
+\subsection{Configuration}
+
+The behavior is controlled by variables within the \texttt{main} function:
+
+\begin{itemize}
+    \item \textbf{Maximum Degree:} 
+    \begin{lstlisting}[language=Python]
+    maximum_degree = 10
+    \end{lstlisting}
+    This sets the upper limit for the polynomial complexity. Higher values may reduce RMSE but risk overfitting the surface roughness rather than the geometry.
+
+    \item \textbf{Method Selection:} 
+    The \texttt{compare\_standard\_vs\_chebyshev} function is hardcoded to run both methods. To save computation time in production, one could modify \texttt{main()} to call \texttt{experiment\_method} with only a single method string ("Standard" or "Chebyshev").
+\end{itemize}

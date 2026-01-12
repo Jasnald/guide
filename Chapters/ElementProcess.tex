@@ -1,0 +1,18 @@
+\chapter{Element and Mesh Processing}
+\label{ch:element_process}
+
+\textbf{Module Path:} \texttt{src/ElementProcess/}
+
+This module handles the mapping of stress fields onto Abaqus finite element meshes. Depending on the data source, the workflow splits into two distinct paths:
+
+\begin{enumerate}
+    \item \textbf{Analytical Workflow (3 Steps):} Generates synthetic stress fields for benchmarking.
+    \item \textbf{Data-Driven Workflow (2 Steps):} Maps experimental/simulation data (from HDF5) directly onto the mesh.
+\end{enumerate}
+
+\input{Chapters/ElementProcess/ep01_orchestration}
+\input{Chapters/ElementProcess/ep02_extraction}
+\input{Chapters/ElementProcess/ep03_analytical}
+\input{Chapters/ElementProcess/ep04_interpolation}
+\input{Chapters/ElementProcess/ep05}
+\input{Chapters/ElementProcess/ep06}

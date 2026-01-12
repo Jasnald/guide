@@ -1,0 +1,55 @@
+\section{Stage 6: Visualization and Utilities}
+\label{sec:exp2_stage6}
+
+\textbf{Scripts:} \texttt{Choosed\_plot\_Html.py}, \texttt{Plane\_plot.py}, and various utilities.
+
+Visual validation is the final step in confirming that the extrusion process (Stage 5) has correctly transformed the 1D profile into a coherent 3D surface. This stage relies on a set of core utility modules and offers both interactive 3D rendering and quick 2D debugging tools.
+
+\subsection{Core Utilities}
+The entire pipeline relies on two foundational helper modules that handle data abstraction and plotting geometry.
+
+\begin{itemize}
+    \item \textbf{\texttt{plane\_data\_utils.py}:} 
+    This module acts as the I/O layer for the project. It standardizes how measurement data is saved and loaded. Key functions include:
+    \begin{itemize}
+        \item \texttt{save\_plane\_data\_json}: Serializes fitted parameters, equations, and point residuals into a unified JSON format.
+        \item \texttt{extract\_points\_from\_plane\_data}: Decouples the storage format from analysis, returning NumPy arrays $(X, Y, Z_{orig}, Z_{fit})$ for easy plotting.
+    \end{itemize}
+
+    \item \textbf{\texttt{plane\_plot\_utils.py}:} 
+    Provides geometric primitives for visualization. Although primarily designed for T-shape masking in Module A, it contains the logic for projecting reconstructed surfaces onto Matplotlib axes via \texttt{plot\_plane\_reconstruction\_on\_ax}.
+\end{itemize}
+
+\subsection{Production Visualization}
+
+For final reporting and deep analysis, the workflow uses two primary scripts:
+
+\subsubsection{Interactive 3D Surface (\texttt{Choosed\_plot\_Html.py})}
+This script is the 3D counterpart to the extrusion process. It scans for files ending in \texttt{\_Rebuild\_from\_curve.json} and generates an interactive HTML dashboard using \textbf{Plotly}.
+\begin{itemize}
+    \item \textbf{Visual Output:} It renders the extruded surface (Z constant along Y) overlaid with the original measurement points.
+    \item \textbf{Interactivity:} Users can rotate and zoom to inspect edge artifacts or extrusion consistency.
+\end{itemize}
+
+\subsubsection{Statistical Dashboard (\texttt{Plane\_plot.py})}
+Designed for rigorous quality control, this script uses \textbf{Seaborn} to generate static dashboards. It calculates:
+\begin{itemize}
+    \item Residual Histograms (Normal distribution check).
+    \item RMSE and Max Error metrics.
+    \item Heatmaps of deviation ($Z_{measured} - Z_{model}$).
+\end{itemize}
+
+\subsection{Development and Debugging Tools}
+
+Several lightweight scripts are included for rapid prototyping and checking intermediate results. These are intended for developer use rather than final reporting:
+
+\begin{itemize}
+    \item \textbf{\texttt{Cursves\_plot.py} / \texttt{copy.py}:} 
+    Simple Matplotlib scripts with hardcoded file paths. They allow developers to quickly overlay the raw points against specific fitted curves (e.g., Degree 2 vs. Degree 4) to tune fitting parameters like the Ridge alpha.
+    
+    \item \textbf{\texttt{Choosed\_plot.py}:} 
+    A basic 2D viewer that iterates through all curves in the \texttt{Choosed\_curve} directory and plots them on a single axis to compare profiles across different samples.
+    
+    \item \textbf{\texttt{Choosed\_plot\_mpl.py}:} 
+    A minimalist 3D scatter plotter using Matplotlib's \texttt{mplot3d}. It serves as a lightweight alternative to the Plotly viewer when quick, non-interactive checks are needed.
+\end{itemize}

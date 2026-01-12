@@ -1,0 +1,58 @@
+\section{Stage 2: Visual Inspection and Manual Cleaning}
+\label{sec:stage2}
+
+\textbf{Script:} \texttt{s2\_Outline\_gui.py}
+
+While Stage 1 removes statistical outliers, it cannot account for all geometric anomalies. Stage 2 provides a Graphical User Interface (GUI) for the visual inspection and manual refinement of the point cloud data.
+
+
+\subsection{How it Works}
+
+The tool is built using the \texttt{Tkinter} framework embedded with \texttt{Matplotlib} for visualization. It operates on the following principles:
+
+\begin{enumerate}
+    \item \textbf{Smart Data Loading:} 
+    The script scans the \texttt{Sample\_postprocess} directory. It uses a regular expression pattern (\texttt{Side*\_Cleaned\_Iter*\_IQR*}) to identify files and automatically loads only the \textbf{latest iteration} (highest "Iter" number) for each measurement side.
+
+    \item \textbf{2D Projection (YZ Plane):} 
+    The visualization focuses exclusively on the YZ plane (Side View), as this is the critical cross-section for determining the profile quality of the T-shape samples.
+
+    \item \textbf{Interactive Deletion:} 
+    Users can remove erroneous points by clicking on the plot. The system calculates the Euclidean distance between the cursor click and the nearest data point:
+    \begin{equation}
+        d = \sqrt{(y_{point} - y_{click})^2 + (z_{point} - z_{click})^2}
+    \end{equation}
+    If $d < 0.1$, the point is flagged for removal.
+
+    \item \textbf{Non-Destructive Saving:} 
+    When data is saved, the script does not overwrite the original cleaning files. Instead, it generates a new file suffixed with \texttt{\_Modified.json} (e.g., \texttt{Side1\_Modified.json}) to ensure data traceability.
+\end{enumerate}
+
+\subsection{Usage}
+
+To launch the interface, execute the script from the terminal:
+
+\begin{lstlisting}[language=Bash]
+python s2_Outline_gui.py
+\end{lstlisting}
+
+\subsubsection{Operational Steps}
+\begin{itemize}
+    \item \textbf{Load Data:} The tool loads files automatically on startup. Use the "Reload Files" button if new data is added during the session.
+    \item \textbf{Navigation:} Select the desired \textbf{Side} and \textbf{Step} from the dropdown menus in the right-hand control panel.
+    \item \textbf{Inspection:} Use the "Color by Section" checkbox to visually distinguish between "bottom" and "wall" points.
+    \item \textbf{Cleaning:} Click directly on outlier points in the plot area to remove them. A confirmation message will appear indicating the number of points removed.
+    \item \textbf{Save:} Click "Save Modified Data" to write the changes to disk.
+\end{itemize}
+
+\subsection{Configuration and Parameters}
+
+Most parameters are accessible via the GUI controls, but certain core behaviors are defined in the code:
+
+\begin{itemize}
+    \item \textbf{Deletion Threshold:} 
+    The sensitivity of the mouse click is hardcoded to \textbf{0.1 units} in the \texttt{on\_click} method. If points are too dense or too sparse, this value can be adjusted in the script.
+    
+    \item \textbf{Directory Paths:} 
+    The script is configured to look for a relative directory named \texttt{Sample\_postprocess}. If the project structure changes, the \texttt{self.input\_dir} variable in the \texttt{\_\_init\_\_} method must be updated.
+\end{itemize}

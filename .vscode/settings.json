@@ -1,0 +1,55 @@
+{
+    "latex-workshop.latex.recipes": [
+        {
+            "name": "XeLaTeX (IPLeiria Template)",
+            "tools": [
+                "xelatex",
+                "bibtex",
+                "xelatex",
+                "xelatex"
+            ]
+        },
+        {
+            "name": "Compilar Direto (Sem Perl)",
+            "tools": [
+                "pdflatex",
+                "bibtex",
+                "pdflatex",
+                "pdflatex"
+            ]
+        }
+    ],
+    "latex-workshop.latex.recipe.default": "XeLaTeX (IPLeiria Template)",
+    "latex-workshop.latex.tools": [
+        {
+            "name": "xelatex",
+            "command": "C:/Users/adam-m52909t0h57knl0/AppData/Local/Programs/MiKTeX/miktex/bin/x64/xelatex.exe",
+            "args": [
+                "-synctex=1",
+                "-interaction=nonstopmode",
+                "-file-line-error",
+                "%DOC%"
+            ],
+            "env": {}
+        },
+        {
+            "name": "pdflatex",
+            "command": "C:/Users/adam-m52909t0h57knl0/AppData/Local/Programs/MiKTeX/miktex/bin/x64/pdflatex.exe",
+            "args": [
+                "-synctex=1",
+                "-interaction=nonstopmode",
+                "-file-line-error",
+                "%DOC%"
+            ],
+            "env": {}
+        },
+        {
+            "name": "bibtex",
+            "command": "C:/Users/adam-m52909t0h57knl0/AppData/Local/Programs/MiKTeX/miktex/bin/x64/bibtex.exe",
+            "args": [
+                "%DOCFILE%"
+            ],
+            "env": {}
+        }
+    ]
+}

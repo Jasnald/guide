@@ -1,0 +1,37 @@
+\section{Geometry Construction Strategies}
+\label{sec:am_geometry}
+
+\textbf{Package:} \texttt{\_modules/geometry/}
+
+This package implements the Computer-Aided Design (CAD) logic of the framework. To support multiple experimental setups without code duplication, it employs a \textbf{Strategy Pattern}: each simulation type (e.g., T-Shape, Milling) is encapsulated in its own sub-package (\texttt{sim\_one}, \texttt{sim\_two}, etc.), but they all expose a consistent \texttt{ModelMixin} interface.
+
+\subsection{Strategy 1: T-Shape (Sim One)}
+\textbf{Sub-package:} \texttt{sim\_one/}
+
+Designed for the standard Residual Stress benchmark (Module A), this strategy generates a parametric T-shaped beam.
+
+\begin{itemize}
+    \item \textbf{Vertex Calculation (\texttt{\_get\_shape.py}):} 
+    Calculates the 2D coordinates of the T-profile cross-section based on the provided dimensions (web width, flange height, etc.). It returns a closed loop of points ensuring geometric continuity.
+    
+    \item \textbf{Solid Extrusion (\texttt{\_set\_geometry.py}):} 
+    Uses the Abaqus API \texttt{BaseSolidExtrude}. It draws the calculated profile on a sketch plane and extrudes it by the specified \texttt{Length} parameter to create the 3D part.
+\end{itemize}
+
+\subsection{Strategy 2: Milling Profile (Sim Two)}
+\textbf{Sub-package:} \texttt{sim\_two/}
+
+Designed for the Profile Analysis experiment (Module B), dealing with material removal or complex boundary conditions.
+
+\begin{itemize}
+    \item \textbf{Geometry Logic (\texttt{\_set\_geometry2.py}):} 
+    Unlike the simple extrusion of Sim One, this module may handle additional geometric features or different orientation requirements specific to the milling setup.
+    
+    \item \textbf{Coordinate Handling (\texttt{\_get\_shape2.py}):} 
+    Provides the specialized vertex logic required for this specific profile, ensuring the mesh seeds align with the measurement points.
+\end{itemize}
+
+\subsection{Integration: The Model Mixin}
+\textbf{Files:} \texttt{model\_mixin.py} (in each sub-package)
+
+The \texttt{ModelMixin} class acts as the standardized connector. Regardless of whether the underlying geometry is a T-Shape or a Milling plate, this mixin provides the main \texttt{build\_model()} method that the orchestration script calls. This allows the high-level pipeline to switch between experiments simply by importing a different Mixin, without changing the execution logic.

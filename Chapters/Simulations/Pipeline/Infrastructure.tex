@@ -1,0 +1,29 @@
+\section{Configuration Management}
+\label{sec:pl_config}
+
+\textbf{Script:} \texttt{config.py}
+
+The \texttt{ConfigurationManager} class serves as the single source of truth for the simulation parameters. It decouples the Python logic from the user inputs, loading settings from an external \texttt{config.json} file and populating a strictly-typed \texttt{SimulationConfig} object.
+
+\subsection{Loading Logic}
+The \texttt{load()} method implements a "fail-safe" loading strategy:
+\begin{enumerate}
+    \item \textbf{JSON Parsing:} Reads the raw JSON structure.
+    \item \textbf{Path Resolution:} Resolves relative paths (e.g., \texttt{./CM\_Simulations}) to absolute paths based on the project root, ensuring portability across different machines.
+    \item \textbf{Default Fallbacks:} If specific parameters (like \texttt{mesh\_step} or \texttt{n\_cpus}) are missing from the JSON, the manager assigns hardcoded default values (e.g., $E=210000$ MPa, $\nu=0.3$) to guarantee the simulation can proceed.
+\end{enumerate}
+
+\section{Workspace Hygiene}
+\label{sec:pl_cleardir}
+
+\textbf{Script:} \texttt{clear\_dir.py}
+
+To prevent data contamination between simulation runs—where results from a previous iteration might be mistakenly read by the current job—this script provides a robust cleaning utility.
+
+\subsection{Functionality}
+The function \texttt{ClearDirectory(target\_dir)} performs a deep clean:
+\begin{itemize}
+    \item \textbf{Validation:} Checks if the target directory exists to avoid errors.
+    \item \textbf{Recursive Removal:} Iterates through the directory contents, distinguishing between files (removed via \texttt{os.unlink}) and subdirectories (removed via \texttt{shutil.rmtree}).
+    \item \textbf{Error Handling:} Wraps deletions in try-except blocks to report specific file access errors without crashing the entire pipeline.
+\end{itemize}

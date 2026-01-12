@@ -1,0 +1,36 @@
+\chapter{Abaqus Scripting Interface (ASI) Framework}
+\label{ch:abaqus_modules}
+
+\textbf{Module Path:} \texttt{src/Simulations/\_modules/}
+
+\begin{quote}
+    \textbf{Architecture Note:} This module represents the deepest layer of the simulation infrastructure. Unlike the text-based manipulation of \texttt{\_inp\_modules}, this framework operates directly within the Abaqus kernel (Python 2.7), utilizing the official API (`mdb`, `part`, `assembly`) to construct models programmatically.
+\end{quote}
+
+\section{Overview}
+
+This library provides a modular, object-oriented abstraction over the verbose Abaqus scripting interface. It is organized into functional domains to separate geometry generation, property assignment, and meshing logic.
+
+\subsection{Core Components}
+The framework is divided into four primary sub-packages:
+
+\begin{itemize}
+    \item \textbf{Core (\texttt{\_modules/core}):} 
+    Handles the standard Finite Element definitions common to all simulations. This includes Job creation, Mesh control (seeding, element types like C3D8R), and Step definitions.
+    
+    \item \textbf{Assignment (\texttt{\_modules/assigment}):} 
+    Manages the physical properties of the model. It contains dedicated modules for Material definition, Section creation, and the instantiation of parts into the assembly.
+    
+    \item \textbf{Geometry (\texttt{\_modules/geometry}):} 
+    Implements the "CAD" logic. It uses a Strategy pattern where each simulation type (e.g., \texttt{sim\_one} for T-Shape, \texttt{sim\_two} for Milling) has its own geometry generator, ensuring that new experiments can be added without modifying the core logic.
+    
+    \item \textbf{Setup \& Utilities (\texttt{\_modules/geometry\_setup}, \texttt{utilitary}):} 
+    Provides high-level helpers for partitioning, datum plane creation, and boundary conditions. The utility module includes \textbf{Mixins} for logging and context management, allowing distinct classes to share common functionalities seamlessly.
+\end{itemize}
+
+\section{Design Philosophy}
+The module employs a **Mixin-based architecture**. A main simulation class typically inherits from multiple specialized mixins (e.g., \texttt{ModelMixin}, \texttt{MeshMixin}), composing a complete FEA model builder from small, reusable blocks. This approach manages the complexity of the Abaqus API, making the codebase maintainable and scalable.
+
+\input{Chapters/Simulations/Modules/am01_core}
+\input{Chapters/Simulations/Modules/am02_assignment}
+\input{Chapters/Simulations/Modules/am03_geometry}

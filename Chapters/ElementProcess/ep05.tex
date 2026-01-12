@@ -1,0 +1,52 @@
+\section{Data-Driven Stress Mapping}
+\label{sec:ep_datadriven}
+
+\textbf{Script:} \texttt{s2\_RE\_ExnCon.py}
+
+This module implements the core logic for mapping experimental or simulation data onto a target finite element mesh. Unlike analytical generation methods, this script processes pre-calculated stress fields stored in HDF5 format and maps them to element centroids using spatial algorithms.
+
+\subsection{Core Processor Architecture}
+
+The \texttt{StressProcessor} class encapsulates the entire mapping workflow. It is designed to be robust against large datasets by using chunked reading and efficient neighbor search structures.
+
+\subsubsection{1. Simulation Discovery and Matching}
+The processor scans the working directory to pair mesh files with their corresponding results:
+\begin{itemize}
+    \item \textbf{Mesh Identification:} Finds files matching \texttt{Mesh-*--Lenth-*.inp}.
+    \item \textbf{Result Association:} For each mesh, it looks for a corresponding HDF5 file (e.g., \texttt{S\_batch.h5}) in the specified source folder. It uses regex patterns to ensure the correct Load Case (e.g., \texttt{step\_1\_Load}) is extracted.
+\end{itemize}
+
+\subsubsection{2. Spatial Mapping (KDTree)}
+The mapping of stress tensors from the source cloud (HDF5) to the target mesh (Element Centroids) is performed via a k-dimensional tree:
+
+\begin{enumerate}
+    \item \textbf{Tree Construction:} A \texttt{scipy.spatial.KDTree} is built using the $(x, y, z)$ coordinates of the source data nodes.
+    \item \textbf{Querying:} For each target element centroid, the tree is queried to find the nearest source node within a specified \texttt{tolerance} (default $5 \times 10^{-2}$).
+    \item \textbf{Tensor Assignment:} The full stress tensor components ($\sigma_{11}, \sigma_{22}, \sigma_{33}, \tau_{12}, \tau_{13}, \tau_{23}$) from the nearest neighbor are assigned to the target element.
+\end{enumerate}
+
+\subsubsection{3. Abaqus Input Generation}
+The final output is an ASCII file formatted for direct inclusion in Abaqus:
+\begin{lstlisting}
+*Initial Conditions, type=STRESS, input=FileName.csv
+\end{lstlisting}
+The script writes the mapped stresses in the specific column order required by Abaqus for 3D elements, handling zero-padding for shear components if the source data is incomplete (e.g., 2D to 3D mapping).
+
+\subsection{Usage}
+The script can be executed directly or imported as a module:
+
+\begin{lstlisting}[language=Python]
+from Modules_python.s2_RE_ExnCon import StressProcessor
+
+# Initialize with tolerance configuration
+processor = StressProcessor(
+    base_dir="C:/Simulations", 
+    tolerance=0.05
+)
+
+# Run batch processing
+results = processor.process_all_simulations(
+    hdf5_folder="C:/Data/HDF5_Source"
+)
+\end{lstlisting}
+.

@@ -1,0 +1,56 @@
+\section{Stage 3: 1D Curve Fitting}
+\label{sec:exp2_stage3}
+
+\textbf{Script:} \texttt{s3\_Curve\_process.py}
+
+Unlike the bivariate surface fitting in Module A, milling profiles are modeled as univariate polynomials $Z = P(x)$. This stage fits curves of varying degrees (1 to $N$) to the cleaned profile data, utilizing Ridge Regression to control overfitting.
+
+\subsection{Regularized Fitting (Ridge Regression)}
+
+To prevent Runge's phenomenon—where high-degree polynomials oscillate wildly at the edges—the script employs **Ridge Regression** (Tikhonov Regularization).
+
+Instead of minimizing just the residual sum of squares ($||Ax - b||^2$), the algorithm minimizes:
+\begin{equation}
+    J(\beta) = ||\mathbf{X}\beta - \mathbf{y}||^2 + \alpha ||\beta||^2
+\end{equation}
+Where:
+\begin{itemize}
+    \item $\mathbf{X}$ is the Vandermonde matrix of powers $[1, x, x^2, \dots]$.
+    \item $\beta$ are the polynomial coefficients.
+    \item $\alpha$ (configured as \texttt{RIDGE\_ALPHA}) is the penalty term.
+\end{itemize}
+
+The solution is computed via the closed-form normal equation modified for regularization:
+\begin{equation}
+    \hat{\beta} = (\mathbf{X}^T \mathbf{X} + \alpha \mathbf{I})^{-1} \mathbf{X}^T \mathbf{y}
+\end{equation}
+In the script, the value of $\alpha$ defaults to \textbf{1.0} (set by \texttt{RIDGE\_ALPHA = 1}), providing a moderate penalty to large coefficients.
+
+\subsection{Coordinate Normalization and Substitution}
+
+To ensure numerical stability during the fitting process, the X-coordinates are mapped to the interval $[-1, 1]$. However, the output coefficients must describe the curve in the original physical coordinate system.
+
+The script handles this via \textbf{Linear Substitution} using Horner's method:
+\begin{enumerate}
+    \item \textbf{Normalize:} Transform $x \rightarrow t$ where $t \in [-1, 1]$.
+    \item \textbf{Fit:} Calculate coefficients $C_t$ for $P(t)$.
+    \item \textbf{Substitute:} Map back to $x$ using the linear relationship $t = ax + b$.
+    \begin{equation}
+        P(x) = \sum C_{t,i} (ax + b)^i
+    \end{equation}
+    The function \texttt{\_compose\_linear\_substitution} performs this expansion mathematically, returning coefficients valid for raw input values.
+\end{enumerate}
+
+\subsection{Usage}
+
+\begin{lstlisting}[language=Bash]
+python s3_Curve_process.py
+\end{lstlisting}
+
+\textbf{Process Flow:}
+\begin{itemize}
+    \item The script searches for the most recent data file (Modified > Iteration > Average).
+    \item It iterates from Degree 1 to \texttt{MAX\_DEGREE} (default: 7).
+    \item For each degree, it calculates metrics (MSE, RMSE, Max Error).
+    \item \textbf{Output:} JSON files for each degree (e.g., \texttt{Sample1\_Curve\_deg5.json}) and a summary file comparing all degrees.
+\end{itemize}

@@ -1,0 +1,33 @@
+\section{Physical Properties and Assembly}
+\label{sec:am_assignment}
+
+\textbf{Package:} \texttt{\_modules/assigment/} (sic)
+
+Once the geometry is generated, it must be assigned physical properties and instantiated within the simulation assembly. This package manages the material definitions, section creations, and the hierarchical assembly process.
+
+\subsection{Material Definition}
+\textbf{Script:} \texttt{\_set\_material.py}
+
+The \texttt{MaterialMixin} class creates the constitutive models in the Abaqus database.
+\begin{itemize}
+    \item \textbf{Elasticity:} Defines the \texttt{Elastic} behavior using Young's Modulus and Poisson's Ratio provided by the global configuration.
+    \item \textbf{Plasticity:} Optionally adds \texttt{Plastic} behavior. This is crucial for residual stress analysis, as the redistribution of stresses often induces localized yielding. The framework checks if plastic properties are defined in the config before creating this node in the material graph.
+\end{itemize}
+
+\subsection{Section Management}
+\textbf{Scripts:} \texttt{\_set\_section.py}, \texttt{\_set\_section\_assign.py}
+
+In Abaqus, materials are referenced by "Sections", which are then assigned to geometry regions.
+\begin{enumerate}
+    \item \textbf{Creation:} The \texttt{SectionMixin} creates a \textbf{Solid Homogeneous Section}. It links the previously defined material (e.g., "WORK\_PIECE\_MATERIAL") to this section definition.
+    \item \textbf{Assignment:} The \texttt{SectionAssignMixin} applies this section to the actual part geometry. It targets the \textbf{Whole Part} (Cells) to ensure the entire volume simulates the specified metal properties.
+\end{enumerate}
+
+\subsection{Assembly Instantiation}
+\textbf{Script:} \texttt{\_set\_instance.py}
+
+Abaqus distinguishes between "Parts" (geometry definitions) and "Instances" (occurrences in the assembly). The solver runs on the assembly.
+\begin{itemize}
+    \item \textbf{Instance Creation:} The \texttt{InstanceMixin} imports the generated Part into the Assembly module.
+    \item \textbf{Naming Convention:} It forces the instance name to match the configuration default (e.g., \texttt{T\_SHAPE\_PART-1}). This strict naming is vital for the external \texttt{\_inp\_modules} (Part II) to correctly locate and inject boundary conditions later in the pipeline.
+\end{itemize}

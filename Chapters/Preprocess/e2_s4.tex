@@ -1,0 +1,58 @@
+\section{Stage 4: Comparative Analysis and Averaging}
+\label{sec:exp2_stage4}
+
+\textbf{Script:} \texttt{s4\_Choosed\_curve.py}
+
+Similar to the surface analysis in Module A, this stage isolates specific profile features (such as roughness or waviness) by removing underlying forms (tilt or curvature) and generates a statistical average of the sample batch.
+
+\subsection{Tilt Correction via Curve Subtraction}
+
+To isolate the desired surface frequency, the script subtracts a lower-degree polynomial (representing form/tilt) from a higher-degree polynomial (representing the profile detail).
+
+\subsubsection{Re-fitting Mechanism}
+Unlike simple algebraic subtraction of coefficients, this script employs a numerical re-fitting approach to ensure robustness:
+\begin{enumerate}
+    \item \textbf{Evaluation:} It generates a synthetic domain of $x$ points (default range $[-10, 10]$).
+    \item \textbf{Difference Calculation:} For every $x$, it computes the difference between the two loaded polynomial models:
+    \begin{equation}
+        z_{diff}(x) = P_{high\_degree}(x) - P_{low\_degree}(x)
+    \end{equation}
+    \item \textbf{Regression:} It fits a \textbf{new polynomial} to these difference points $(x, z_{diff})$ to obtain the parameters of the corrected curve.
+\end{enumerate}
+
+\subsection{Master Profile Averaging}
+
+Once the subtraction curves are generated for all samples, the script computes a "Master Profile" to represent the entire batch.
+
+This is achieved by averaging the polynomial coefficients directly:
+\begin{equation}
+    \mathbf{C}_{avg} = \frac{1}{N} \sum_{i=1}^{N} \mathbf{C}_{i}
+\end{equation}
+Where $\mathbf{C}_i$ is the vector of coefficients for sample $i$. This averaged parameter set is saved as \texttt{Average\_Subtraction.json} and serves as the input for the final reconstruction stage.
+
+\subsection{Usage and Configuration}
+
+\begin{lstlisting}[language=Bash]
+python s4_Choosed_curve.py
+\end{lstlisting}
+
+\subsubsection{Configuration}
+The behavior is controlled by variables within the \texttt{main()} function:
+
+\begin{itemize}
+    \item \textbf{Degrees to Subtract:} 
+    \begin{lstlisting}[language=Python]
+    deg_high = 2
+    deg_low = 1
+    \end{lstlisting}
+    Defines which polynomial orders are used. In this default configuration, the script removes linear tilt (Degree 1) from the quadratic form (Degree 2).
+
+    \item \textbf{Sample Range:}
+    The script iterates through a hardcoded range of samples (e.g., \texttt{range(1, 10)}). This loop must be adjusted to match the actual number of samples processed in previous stages.
+\end{itemize}
+
+\textbf{Output:}
+\begin{itemize}
+    \item \textbf{Individual Subtractions:} \texttt{SampleX\_Subtraction.json} saved in the \texttt{Choosed\_curve} directory.
+    \item \textbf{Final Average:} \texttt{Average\_Subtraction.json}.
+\end{itemize}

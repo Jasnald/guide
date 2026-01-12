@@ -1,0 +1,15 @@
+\section{Stage 2: Analytical Stress Field Generation}
+\label{sec:ep_field_gen}
+
+\textbf{Script:} \texttt{s2\_RE\_Field.py}
+
+This script generates a synthetic residual stress field for validation or initial condition setup. It creates a defined stress distribution (typically cylindrical) based on the geometric limits of the mesh.
+
+\subsection{Functionality}
+\begin{itemize}
+    \item \textbf{Mesh Generation:} 
+    Based on the coordinate limits ($x_{min}, x_{max}, \dots$) extracted from the model information, it generates a homogeneous cloud of points to represent the material volume.
+    
+    \item \textbf{Stress Calculation:} 
+    It computes the geometric center of the component and calculates stress components ($\sigma_{xx}, \sigma_{yy}, \dots$) analytically relative to this center. This is useful for creating benchmark fields when experimental data is unavailable.
+\end{itemize}

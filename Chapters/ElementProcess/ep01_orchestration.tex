@@ -1,0 +1,31 @@
+\section{Workflow Orchestration}
+\label{sec:ep_orchestration}
+
+\textbf{Script:} \texttt{Elements\_main.py}
+
+This script primarily orchestrates the \textbf{Analytical Workflow}, serving as a pipeline for generating and mapping theoretical stress fields onto a mesh. For Data-Driven workflows (Real Data), the process typically bypasses the synthetic generation steps in favor of direct HDF5 mapping.
+
+\subsection{Analytical Pipeline (3 Scripts)}
+When running in analytical mode, the pipeline executes three discrete stages:
+
+\begin{enumerate}
+    \item \textbf{Extraction (s1):} 
+    Parses geometry and topology from the \texttt{.inp} file.
+    
+    \item \textbf{Synthetic Generation (s2):} 
+    Calculates a theoretical stress distribution (e.g., cylindrical) based on the mesh bounding box. Executed via \texttt{s2\_RE\_Field.py}.
+    
+    \item \textbf{Interpolation (s3):} 
+    Maps the synthetic cloud points onto the element centroids. Executed via \texttt{ElementTensionInterpolator} in \texttt{s3\_RE\_Interpolator.py}.
+\end{enumerate}
+
+\subsection{Data-Driven Pipeline (2 Scripts)}
+For real simulation data (e.g., Contour Method or RSA), the workflow is condensed. Since the source data (HDF5) already contains spatial information, the generation and interpolation steps are merged:
+
+\begin{enumerate}
+    \item \textbf{Extraction (s1):} 
+    Same as above; prepares the target mesh centroids.
+    
+    \item \textbf{Direct Mapping (s2):} 
+    Uses \texttt{s2\_RE\_ExnCon.py} to read the HDF5 source and map stresses directly to the target centroids using KDTree algorithms, skipping the intermediate synthetic generation.
+\end{enumerate}

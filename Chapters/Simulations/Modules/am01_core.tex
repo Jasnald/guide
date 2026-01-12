@@ -1,0 +1,43 @@
+\section{Core Definitions (Job, Step, Mesh)}
+\label{sec:am_core}
+
+\textbf{Package:} \texttt{\_modules/core/}
+
+This package establishes the fundamental Finite Element Analysis (FEA) settings that are consistent across different simulation types. It abstracts the standard Abaqus commands for job submission, time-stepping, and discretization into reusable classes.
+
+\subsection{Job Management}
+\textbf{Script:} \texttt{\_set\_job.py}
+
+The \texttt{JobMixin} class encapsulates the creation of the analysis job within the Abaqus database (\texttt{mdb}).
+\begin{itemize}
+    \item \textbf{Resource Allocation:} It translates the configuration parameters (CPUs, GPU acceleration, RAM) into the specific arguments required by \texttt{mdb.Job()}.
+    \item \textbf{Submission:} Provides methods to submit the job programmatically and wait for completion (blocking call), which is essential for the pipeline's sequential execution.
+\end{itemize}
+
+\subsection{Analysis Step}
+\textbf{Script:} \texttt{\_set\_step.py}
+
+Defines the physics of the simulation time. The \texttt{StepMixin} typically creates a \textbf{Static, General} step (\texttt{Step-1}).
+\begin{itemize}
+    \item \textbf{Non-Linearity:} Sets the \texttt{nlgeom=ON} flag to account for large deformations, which is critical for accurate residual stress redistribution.
+    \item \textbf{Incrementation:} Configures the automatic time incrementation scheme (Initial, Minimum, and Maximum increment sizes) to ensure convergence stability.
+\end{itemize}
+
+\subsection{Mesh Strategy}
+\textbf{Script:} \texttt{\_set\_mesh.py} (and submodules)
+
+Meshing in Abaqus scripting is complex because it requires selecting regions (Cells) and assigning specific controls. This framework breaks down the mesh logic into specialized modular components:
+
+\begin{enumerate}
+    \item \textbf{Element Type (\texttt{\_set\_mesh\_sc8r.py}):} 
+    Enforces the use of \textbf{C3D8R} elements (8-node linear brick, reduced integration). This element type is chosen for its computational efficiency and robustness in contact/plasticity problems (hourglass control included).
+    
+    \item \textbf{Global Seeding (\texttt{\_set\_mesh\_seed.py}):} 
+    Applies the global element size target defined in the DOE configuration (e.g., 0.8 mm) to the entire part.
+    
+    \item \textbf{Structured Meshing Controls:}
+    \begin{itemize}
+        \item \textbf{Sweep vs. Stack (\texttt{\_set\_mesh\_sweep.py}, \texttt{\_set\_mesh\_stack.py}):} Defines the meshing technique. \textit{Sweep} is used for extrudable geometries, while \textit{Stack} direction is explicitly set to ensure layers are aligned with the cut plane (Z-axis).
+        \item \textbf{Biasing (\texttt{\_set\_mesh\_bias.py}):} Allows for variable mesh density, refining the mesh near the cut surface (where stress gradients are high) and coarsening it further away to save computational cost.
+    \end{itemize}
+\end{enumerate}

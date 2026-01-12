@@ -1,0 +1,34 @@
+\section{Execution Wrappers}
+\label{sec:inp_execution}
+
+\textbf{Script:} \texttt{runners.py}
+
+This module bridges the gap between the Python data structures and the external Abaqus solver. It abstracts the complexity of command-line invocation, process management, and batch reporting.
+
+\subsection{Single Job Execution}
+\textbf{Class:} \texttt{AbaqusJobRunner}
+
+This class handles the execution of a single simulation job. It is designed to be robust on Windows environments where path handling can be problematic.
+\begin{itemize}
+    \item \textbf{Command Construction:} 
+    The method \texttt{\_build\_command\_string} constructs the exact CLI string required by the Abaqus driver. It handles:
+    \begin{lstlisting}[language=Bash]
+    abaqus job=JobName input="Path With Spaces.inp" cpus=4 memory=90 scratch="C:/Temp"
+    \end{lstlisting}
+    It ensures all paths are correctly quoted to prevent errors.
+    
+    \item \textbf{Resource Management:} 
+    It translates the configuration object (from \texttt{dataclasses.py}) into solver flags, setting CPU affinity and memory limits dynamically.
+    
+    \item \textbf{Scratch Handling:} 
+    If enabled, it automatically creates and assigns a scratch directory for temporary solver files, keeping the main output directory clean.
+\end{itemize}
+
+\subsection{Batch Orchestration}
+\textbf{Class:} \texttt{INPRunner}
+
+This class manages the execution of multiple input files in sequence.
+\begin{itemize}
+    \item \textbf{Process Monitoring:} It launches the Abaqus process and monitors its return code. A code of \texttt{0} implies success, while anything else triggers error logging.
+    \item \textbf{Reporting:} After the batch completes, it generates a \texttt{summary\_report.txt} containing execution times and status (OK/ERROR) for every file processed. This allows the user to quickly identify failed simulations in large batches.
+\end{itemize}

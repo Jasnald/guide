@@ -1,0 +1,21 @@
+\section{Robust INP Parsing}
+\label{sec:inp_parsing}
+
+\textbf{Script:} \texttt{parser.py}
+
+Abaqus Input Files (\texttt{.inp}) are ASCII-based but often contain inconsistent formatting (variations in capitalization, whitespace, and parameter ordering). The \texttt{INPParser} class provides static utility methods to handle this variability robustly.
+
+\subsection{Key Methods}
+\begin{itemize}
+    \item \textbf{\texttt{is\_header(line, keyword)}:} 
+    Performs a case-insensitive check to see if a line starts with a specific keyword (e.g., \texttt{*ELEMENT}). This centralizes the logic for identifying Abaqus command blocks.
+    
+    \item \textbf{\texttt{get\_parameter(line, key)}:} 
+    Extracts values from comma-separated key-value pairs typical of Abaqus headers.
+    \begin{lstlisting}
+    Input: "*ELEMENT, TYPE=C3D8R, ELSET=Set-1"
+    Call: get_parameter(line, "ELSET")
+    Output: "Set-1"
+    \end{lstlisting}
+    It handles edge cases like spaces around the equals sign or mixed casing, ensuring reliable metadata extraction.
+\end{itemize}

@@ -1,0 +1,63 @@
+\section{Stage 4: Comparative Analysis and Averaging}
+\label{sec:stage4}
+
+\textbf{Script:} \texttt{s4\_Choosed\_plane.py}
+
+While Stage 3 fits surfaces to individual measurements, Stage 4 performs comparative analysis to isolate specific surface features and generate a representative "master" profile for the sample batch.
+
+\subsection{How it Works}
+
+The script executes a two-step analytical process:
+
+\subsubsection{1. Tilt Correction via Surface Subtraction}
+Measurement data often includes a systematic "tilt" due to physical alignment during scanning. To remove this while preserving surface roughness/curvature:
+\begin{enumerate}
+    \item The script loads two fitted surfaces of different degrees (e.g., Degree 5 and Degree 1).
+    \item It computes the \textbf{Difference Surface} ($Z_{diff}$) by subtracting the lower-degree surface (tilt/form) from the higher-degree surface (roughness/waviness):
+    \begin{equation}
+        Z_{diff}(x,y) = Z_{high\_degree}(x,y) - Z_{low\_degree}(x,y)
+    \end{equation}
+    \item This operation effectively "flattens" the data relative to its general form.
+\end{enumerate}
+
+\subsubsection{2. Multi-Side Averaging}
+To create a robust simulation model, the tool averages the results from multiple sides (e.g., Side 1 and Side 2) into a single definition.
+\begin{itemize}
+    \item Instead of averaging the raw points, the script \textbf{averages the polynomial coefficients} ($P_{avg}$) directly:
+    \begin{equation}
+        P_{avg} = \frac{1}{N} \sum_{i=1}^{N} P_{side\_i}
+    \end{equation}
+    \item It then recalculates the $Z$ coordinates for the entire grid using these averaged parameters, ensuring a mathematically consistent surface.
+\end{itemize}
+
+\subsection{Usage}
+
+Run the analysis script from the terminal:
+
+\begin{lstlisting}[language=Bash]
+python s4_Choosed_plane.py
+\end{lstlisting}
+
+\textbf{Output:}
+\begin{itemize}
+    \item \textbf{Subtraction Files:} \texttt{SideX\_\_subtraction.json} (The individual corrected surfaces).
+    \item \textbf{Final Average:} \texttt{Final\_Average\_\_average\_subtraction.json} (The master profile used for reconstruction).
+\end{itemize}
+
+\subsection{Configuration}
+
+The analysis logic is defined in the \texttt{main()} function variables:
+
+\begin{itemize}
+    \item \textbf{Degrees to Compare:} 
+    \begin{lstlisting}[language=Python]
+    degrees_to_use = [1, 5]
+    \end{lstlisting}
+    This list defines which surfaces are subtracted. The logic is always \texttt{Index 1 - Index 0} (e.g., Degree 5 minus Degree 1). This is critical for determining what frequency of surface features is retained.
+
+    \item \textbf{Sides to Process:} 
+    \begin{lstlisting}[language=Python]
+    sides = ["Side1", "Side2"]
+    \end{lstlisting}
+    Defines which measurement sets are included in the final average. If a sample has 4 measured sides, all 4 should be listed here to improve the statistical reliability of the result.
+\end{itemize}

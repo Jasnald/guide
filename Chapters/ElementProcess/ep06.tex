@@ -1,0 +1,34 @@
+\section{Batch Processing Variant (Exp2 Extension)}
+\label{sec:ep_batch_variant}
+
+\textbf{Script:} \texttt{s2\_RE\_ExnCon2.py}
+
+While the base processor handles the mapping of a single simulation, this script provides a specialized extension class, \texttt{StressProcessorBatch}, designed to handle the complex directory structures found in the Profile Analysis (Exp2/Milling) workflow.
+
+\subsection{Inheritance and Architecture}
+The class inherits directly from the core \texttt{StressProcessor} (defined in \texttt{s2\_RE\_ExnCon.py}). This design ensures that the heavy computational tasks—HDF5 extraction, KDTree construction, and stress tensor mapping—remain identical to the base implementation, ensuring consistency across experiments.
+
+\begin{lstlisting}[language=Python]
+class StressProcessorBatch(StressProcessor):
+    # Inherits all mapping logic, overrides only discovery methods
+\end{lstlisting}
+
+\subsection{Specialized Discovery Logic}
+The primary modification lies in the \texttt{find\_simulations} method. Unlike the standard workflow which assumes a 1:1 relationship between mesh and result, the milling experiment often generates multiple load cases (S1, S2, etc.) for a single geometry.
+
+\begin{itemize}
+    \item \textbf{Pattern Matching:} 
+    The script scans for input files matching both the standard pattern (\texttt{Mesh-*}) and the variant pattern (\texttt{S*\_Mesh-*}) to ensure backward compatibility.
+    
+    \item \textbf{Case Aggregation:} 
+    It normalizes the mesh names to identify the base geometry (removing the \texttt{S*} prefix) and aggregates all corresponding HDF5 results. This allows the processor to iterate through every load case found in the source directory and map it to the correct mesh automatically.
+\end{itemize}
+
+\subsection{Execution}
+This script is typically invoked when processing large batches of sensitivity analysis simulations where the mesh geometry remains constant but the boundary conditions (and thus the HDF5 results) vary.
+
+\begin{lstlisting}[language=Python]
+processor = StressProcessorBatch(base_dir, hdf5_folder)
+all_results = processor.process_all_simulations()
+\end{lstlisting}
+The output is organized into subfolders (e.g., \texttt{Output/S1\_Mesh...}) corresponding to each specific load case identified by the batch processor.

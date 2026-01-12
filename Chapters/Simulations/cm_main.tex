@@ -1,0 +1,81 @@
+\chapter{Contour Method Simulation Workflow}
+\label{ch:cm_workflow}
+
+\textbf{Main Orchestrator:} \texttt{src/Simulations/cm\_main.py}
+\newline
+\textbf{CAE Script:} \texttt{src/Simulations/tests/attempt.py} (Default Geometry Builder)
+\newline
+
+This module implements the specific workflow for the Contour Method experiment. It serves as the master controller, utilizing the generic tools from the \texttt{pipeline} module to execute the simulation lifecycle: form generation, boundary condition application, solving, and result extraction.
+
+\section{Workflow Orchestration}
+\label{sec:cm_orchestration}
+
+The \texttt{main()} function in \texttt{cm\_main.py} defines a linear execution path divided into two primary phases.
+
+\subsection{Phase 1: Simulation Setup and Execution}
+Controlled by the \texttt{default\_process} flag, this phase builds and runs the models:
+
+\begin{enumerate}
+    \item \textbf{Environment Preparation:} 
+    Calls \texttt{ClearDirectory} to purge previous results, ensuring data integrity.
+    
+    \item \textbf{Design of Experiments (DOE):} 
+    Uses \texttt{ParameterGenerator} to create a matrix of simulation cases (varying mesh density, lengths, etc.) based on \texttt{config.json}.
+    
+    \item \textbf{Geometry Generation (The "Builder"):} 
+    Instantiates \texttt{GeometryGenerator}. This generic wrapper calls the specific Abaqus Python script configured in the JSON (typically \texttt{attempt.py}). It launches Abaqus CAE in background mode (\texttt{noGUI}) to generate the base \texttt{.inp} files for every case in the DOE.
+    
+    \item \textbf{Boundary Condition Injection:} 
+    Invokes \texttt{ContourProcessor}. This is the critical physics step where the surface topography data (measured in Module A/B) is calculated via polynomials and injected into the \texttt{.inp} files as nodal displacements.
+    
+    \item \textbf{Batch Solving:} 
+    Uses \texttt{INPRunner} to submit all generated jobs to the Abaqus solver, managing queues and hardware resources.
+\end{enumerate}
+
+\subsection{Phase 2: Result Conversion}
+Controlled by the \texttt{convertion\_process} flag:
+
+\begin{itemize}
+    \item \textbf{Automated Extraction:} 
+    Triggers the \texttt{ResultConverter}. It locates the output ODB files, extracts the stress tensors, and converts them into the XDMF/HDF5 format required for the final correlation analysis.
+\end{itemize}
+
+\section{Abaqus Geometry Script (The Builder)}
+\label{sec:cm_attempt}
+
+\textbf{Script:} \texttt{src/Simulations/tests/attempt.py}
+
+This script represents the "factory floor" of the simulation. Unlike the high-level orchestrators running in Python 3, this script executes strictly within the \textbf{Abaqus Python 2.7 kernel}. It is responsible for the procedural construction of the T-Shape geometry, meshing, and input file generation.
+
+\begin{quote}    
+    \textbf{Legacy Architecture:} Unlike the modular "Mixin" approach used in newer experiments (e.g., Module B/Milling), this script employs a monolithic design. It instantiates the \texttt{ContourAnalysis} class to perform all modeling steps sequentially in a single pass.
+\end{quote}
+
+
+\subsection{Execution Context and Parameter Injection}
+Since Abaqus runs in a separate process, passing arguments from the main pipeline to this script requires a specific mechanism:
+\begin{itemize}
+    \item \textbf{Environment Variables:} The script retrieves simulation parameters (Mesh Size, Length, Max Increment) via the \texttt{os.environ['SIMULATION\_PARAMETERS']} variable, which is injected by the \texttt{GeometryGenerator} before the Abaqus process starts.
+    \item \textbf{Path Patching:} To access the project's custom libraries (\texttt{\_modules}, \texttt{Exp\_Data}) from within the isolated Abaqus environment, the script dynamically appends relative paths to \texttt{sys.path} at runtime.
+\end{itemize}
+
+\subsection{The \texttt{ContourAnalysis} Class}
+This class encapsulates the procedural logic to build the model from scratch.
+
+\begin{enumerate}
+    \item \textbf{Initialization:} 
+    Receives explicit physical parameters (e.g., \texttt{mesh}, \texttt{comprimento}) and solver settings (e.g., \texttt{nlgeom}, \texttt{initialInc}). It sets up the working directory and prepares the Abaqus MDB (Model Database).
+
+    \item \textbf{Geometry Construction (T-Shape):} 
+    It sketches the T-profile based on hardcoded dimensions (Flange Width, Web Height) and extrudes it by the variable \texttt{comprimento}. This rigidity makes it specific to the "Module A" benchmark.
+
+    \item \textbf{Physical Assignment:} 
+    Creates the material (referencing \texttt{WORK\_PIECE\_MATERIAL}) and creates the \texttt{Solid Homogeneous Section}, assigning it to the generated part.
+
+    \item \textbf{Discretization (Meshing):} 
+    Applies the "Global Seed" based on the DOE parameter \texttt{mesh\_size}. It forces the use of standard elements (C3D8R) suitable for stress analysis.
+
+    \item \textbf{Job \& Input Generation:} 
+    Instead of submitting the job to the solver immediately, it generates the \textbf{Input File (.inp)}. This is a critical design choice: it hands over the control back to the Python 3 pipeline (\texttt{cm\_main.py}) to perform the actual submission and result management.
+\end{enumerate}

@@ -1,0 +1,57 @@
+\section{Stage 1: Data Cleaning and Organization}
+\label{sec:stage1}
+
+\textbf{Script:} \texttt{s1\_Outline\_process.py}
+
+This stage addresses the initial ingestion of raw measurement data. Raw data typically arrives in fragmented files (separated by "bottom" and "walls") and contains systematic noise. This script consolidates these files, performs statistical averaging, and executes an automated cleaning routine.
+
+\subsection{How it Works}
+
+The script executes a pipeline consisting of four sequential operations:
+
+\begin{enumerate}
+    \item \textbf{File Combination:} 
+    The script merges corresponding \texttt{\_bottom} and \texttt{\_wall} text files into a single entity. It inserts metadata markers (\texttt{\#bottom} and \texttt{\#wall}) to preserve the geometric distinction between regions.
+
+    \item \textbf{Measurement Averaging:} 
+    To minimize random noise, multiple measurements of the same sample are averaged. 
+    \begin{itemize}
+        \item \textit{Note on Shapes:} If measurements differ in point count (e.g., one run has 1000 points and another 1005), the script automatically trims the data to the minimum row count found to ensure mathematical compatibility.
+    \end{itemize}
+
+    \item \textbf{Step Detection:} 
+    The T-shaped samples contain physical "steps". The script segments the data by analyzing the X-coordinates. A new step is registered if the X-value changes by more than \textbf{0.6\%} relative to the previous point.
+
+    \item \textbf{Automated Outlier Removal (IQR):} 
+    The script cleans noise using the Interquartile Range (IQR) method. It uses a rigorous dual-projection logic: a point is kept only if it is valid in \textbf{both} the XZ projection AND the YZ projection.
+\end{enumerate}
+
+\subsection{Usage}
+
+To run the automated cleaning process, execute the script from the terminal within the project directory:
+
+\begin{lstlisting}[language=Bash]
+python s1_Outline_process.py
+\end{lstlisting}
+
+The script processes all files in the \texttt{Sample\_og} folder and outputs the results to \texttt{Sample\_postprocess} in JSON format.
+
+\subsection{Configuration and Modifiable Parameters}
+
+The script is tuned for standard T-shape measurements, but parameters can be adjusted in the code for different geometries or noise levels.
+
+\begin{itemize}
+    \item \textbf{Cleaning Iterations:} 
+    Controlled by the \texttt{iterations} variable in the \texttt{main()} function. The default is \textbf{3 passes}. Increasing this makes the cleaning more aggressive.
+
+    \item \textbf{Outlier Sensitivity (IQR Factors):} 
+    The strictness of the cleaning is defined in the \texttt{section\_params} dictionary.
+    \begin{itemize}
+        \item \textbf{Bottom/Wall:} Default factor is \textbf{1.2}. Lower values (e.g., 1.0) remove more points; higher values (e.g., 2.0) are more permissive.
+        \item \textbf{Default:} Default factor is \textbf{1.5} for unspecified sections.
+    \end{itemize}
+\end{itemize}
+
+\begin{quote}
+    \textbf{Note on Adaptability:} This script is hardcoded for the file naming convention \texttt{SideX\_MeasurmentY}. If the measurement strategy changes (as seen in \texttt{src/Preprocess/exp2}), the Regex patterns in \texttt{combine\_bottom\_wall\_files} must be updated to match the new filename structure.
+\end{quote}

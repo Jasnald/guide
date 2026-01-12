@@ -1,0 +1,44 @@
+\section{Stage 5: Surface Extrusion and Reconstruction}
+\label{sec:exp2_stage5}
+
+\textbf{Script:} \texttt{s5\_Rebuild.py} (Milling Variant)
+
+The final stage of the profile analysis converts the 1D mathematical curves derived in Stage 4 into full 3D surfaces. Since the milling samples are geometrically uniform along the cutting axis, the 3D model is generated via **linear extrusion**.
+
+\subsection{Extrusion Logic}
+
+While Module A fits a bivariate surface $Z = f(x, y)$, Module B assumes the geometry is translationally invariant along the Y-axis. The reconstruction logic generates points $(x, y, z)$ where the height $Z$ is solely dependent on $X$:
+
+\begin{equation}
+    Z(x, y) = P_{curve}(x) \quad \forall \: y \in [0, H]
+\end{equation}
+
+The function \texttt{cria\_malha\_extrudada} implements this by:
+\begin{enumerate}
+    \item Retrieving the physical dimensions ($W, H$) from the \texttt{Mean\_dim\_workpiece} configuration.
+    \item Iterating through $N_x$ divisions along the X-axis to calculate $z = P(x)$.
+    \item For each $x$, replicating the same $z$ value across $N_y$ divisions along the Y-axis.
+\end{enumerate}
+
+\subsection{Grid Generation and Compatibility}
+
+To ensure the output is compatible with the project's standard visualization tools (which expect 3D plane data), the script wraps the 1D logic into a standard 3D structure.
+
+\begin{itemize}
+    \item \textbf{Mesh Density:} The script generates a regular grid defined by \texttt{Nx=100} and \texttt{Ny=100}.
+    \item \textbf{Wrapper Function:} A helper function \texttt{calc\_z\_wrapper} is used to adapt the 1D evaluator to the 4-argument signature expected by the shared utility \texttt{save\_plane\_data\_json}.
+    \begin{lstlisting}[language=Python]
+def calc_z_wrapper(params, x, y, degree):
+    # Ignores 'y' and 'degree', evaluating only based on 'x'
+    return calcula_z_da_curva(params, x)
+    \end{lstlisting}
+    \item \textbf{Output Path:} The results are saved to \texttt{Sample\_postprocess/Choosed\_plane}. This intentional placement allows the visualization scripts (Stage 6) to load these extruded profiles as if they were standard surfaces.
+\end{itemize}
+
+\subsection{Usage}
+
+\begin{lstlisting}[language=Bash]
+python s5_Rebuild.py
+\end{lstlisting}
+
+The script processes all \texttt{*\_Subtraction.json} files found in the curve directory and outputs corresponding reconstructed JSON files ready for 3D plotting or simulation import.

@@ -1,0 +1,37 @@
+\section{Data Standardization}
+\label{sec:pl_dataclass}
+
+\textbf{Script:} \texttt{dataclass.py}
+
+To maintain robustness across the pipeline, raw dictionary data loaded from JSON is immediately converted into a strictly-typed object. The \texttt{SimulationConfig} dataclass acts as the central contract for the entire simulation workflow.
+
+\subsection{Structure}
+The class groups parameters into logical domains:
+\begin{itemize}
+    \item \textbf{Paths:} Validated \texttt{Path} objects for working directories and scripts (e.g., \texttt{geometry\_script}).
+    \item \textbf{Physics:} Material properties like Elastic Modulus and Poisson's Ratio.
+    \item \textbf{Meshing:} Range definitions (\texttt{min}, \texttt{max}, \texttt{step}) for Design of Experiments (DOE).
+    \item \textbf{Solver:} Abaqus-specific flags such as \texttt{nlgeom} (Non-Linear Geometry) and time incrementation limits.
+\end{itemize}
+
+\section{Automated Case Generation}
+\label{sec:pl_generator}
+
+\textbf{Script:} \texttt{generator.py}
+
+This module implements the "Design of Experiments" (DOE) logic, automatically generating the necessary input files for a parametric study.
+
+\subsection{Parameter Combination}
+\textbf{Class:} \texttt{ParameterGenerator}
+
+The method \texttt{generate\_combinations} takes the ranges defined in the configuration (e.g., Mesh Size from 0.6 to 1.0, Length from 50 to 100) and produces a comprehensive list of all permutation dictionaries. It generates a unique \texttt{simulation\_id} for each case (e.g., \texttt{Mesh-0\_8--Length-50}) to serve as a key throughout the pipeline.
+
+\subsection{Geometry Fabrication}
+\textbf{Class:} \texttt{GeometryGenerator}
+
+Once parameters are defined, this class instantiates the physical models:
+\begin{enumerate}
+    \item \textbf{Environment Setup:} It serializes the parameter dictionary into a JSON string and injects it into the OS environment variables (\texttt{SIMULATION\_PARAMETERS}).
+    \item \textbf{Abaqus CAE Execution:} It invokes the configured Abaqus Python script in \texttt{noGUI} mode. This script reads the environment variables and constructs the \texttt{.inp} file programmatically.
+    \item \textbf{Batch Management:} It iterates through the entire list of combinations, ensuring a dedicated directory is created and populated for every simulation case.
+\end{enumerate}

@@ -1,0 +1,70 @@
+\section{Stage 6: Visualization and Quality Assessment}
+\label{sec:stage6}
+
+\textbf{Scripts:} \texttt{Plane\_plot.py} and \texttt{Choosed\_plot.py}
+
+Numerical metrics like RMSE are insufficient for fully characterizing surface quality. A low error value might mask systematic geometric distortions or localized defects. This stage provides both static statistical charts and interactive 3D models to visually validate the fitted equations.
+
+\subsection{Static 2D Analysis (Plane\_plot.py)}
+
+This script generates comprehensive diagnostic dashboards for every fitted surface found in the data directory. It leverages \texttt{Matplotlib} and \texttt{Seaborn} to create high-resolution static images.
+
+\subsubsection{Diagnostic Layout}
+For each fitted plane, the script produces a 6-panel figure (\texttt{\_seaborn\_layout.png}) containing:
+
+\begin{enumerate}
+    \item \textbf{Fitted Z Scatter:} Top-down view of the mathematical surface.
+    \item \textbf{Original Data Overlay:} Visualizes the raw "Steps" data to verify alignment.
+    \item \textbf{Reconstructed Surface (T-Shape):} 
+    Uses the utility \texttt{plot\_plane\_reconstruction\_on\_ax} to render the continuous polynomial surface.
+    \begin{itemize}
+        \item \textit{Masking:} It applies a boolean mask via \texttt{create\_t\_shape\_mask} to render only the T-shaped region, hiding the invalid rectangular bounding box.
+    \end{itemize}
+    \item \textbf{Residual Heatmap:} A spatial map of errors ($Z_{measured} - Z_{fitted}$). This highlights if errors are random (good) or clustered in specific regions (bad).
+    \item \textbf{Residual Histogram:} A distribution plot with Kernel Density Estimation (KDE) to verify if errors follow a normal distribution.
+    \item \textbf{Statistics Panel:} Displays the exact equation string, RMSE, and Max Error.
+\end{enumerate}
+
+\subsubsection{Method Comparison}
+If both Standard and Chebyshev fits exist for the same side/degree, the script automatically generates a \textbf{Comparison Plot}. This side-by-side analysis calculates the percentage improvement of one method over the other.
+
+\subsection{Interactive 3D Visualization (Choosed\_plot.py)}
+
+While 2D plots are good for statistics, 3D plotting is essential for spatial understanding. This script uses the \texttt{Plotly} library to generate an interactive HTML file.
+
+\subsubsection{Functionality}
+The script creates a 2x2 grid of 3D scenes:
+\begin{itemize}
+    \item \textbf{Grid Generation:} It converts the polynomial equation into a dense regular grid (default $100 \times 100$) using \texttt{generate\_plane\_plot\_data}.
+    \item \textbf{Layers:} 
+    \begin{itemize}
+        \item \textit{Surface:} The continuous fitted mesh (opacity 0.8).
+        \item \textit{Points:} The original measurement points overlaid as black dots.
+    \end{itemize}
+    \item \textbf{Interactivity:} The output is saved as \texttt{3D\_planes\_visualization.html}. Opening this file in a web browser allows the user to rotate, zoom, and pan the models to inspect specific defects or curvature.
+\end{itemize}
+
+\subsection{Usage and Configuration}
+
+\subsubsection{Running the Scripts}
+\begin{lstlisting}[language=Bash]
+# Generate static statistics/residuals
+python Plane_plot.py
+
+# Generate interactive 3D model
+python Choosed_plot.py
+\end{lstlisting}
+
+\subsubsection{Configuration}
+\begin{itemize}
+    \item \textbf{Z-Axis Scaling:} 
+    In \texttt{Plane\_plot.py}, the visualization limits are hardcoded to focus on surface texture:
+    \begin{lstlisting}[language=Python]
+    z_min_val = -0.01
+    z_max_val = 0.02
+    \end{lstlisting}
+    These should be adjusted if the sample deviations exceed this range.
+
+    \item \textbf{Target Files (3D):} 
+    The \texttt{Choosed\_plot.py} script is currently hardcoded to look for specific file names in the \texttt{main()} function (e.g., \texttt{Side1\_\_6\_subtraction.json}, \texttt{Final\_Average...}). Users must update these paths to match the specific degree or file names they wish to inspect.
+\end{itemize}

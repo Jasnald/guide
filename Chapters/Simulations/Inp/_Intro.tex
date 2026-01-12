@@ -1,0 +1,49 @@
+\chapter{Core INP Manipulation Library}
+\label{ch:inp_modules}
+
+\textbf{Module Path:} \texttt{src/Simulations/\_inp\_modules/}
+
+This module serves as the foundational library for programmatically interacting with Abaqus Input Files (\texttt{.inp}). Unlike standard Python scripts that utilize the Abaqus Object Model (AOM) inside the GUI, this library acts as a standalone parser and modifier, manipulating the ASCII input files directly. This approach offers greater flexibility, performance, and independence from the Abaqus licensing environment during the pre-processing phase.
+
+
+\textbf{Note:} This is a core module, so the user will rarely need to modify anything here.
+
+\section{Library Architecture}
+
+The library is structured into four functional components that abstract the complexity of finite element definitions.
+
+\subsection{1. Data Structures and Parsing}
+\textbf{Files:} \texttt{dataclasses.py}, \texttt{parser.py}
+
+Defines lightweight data structures (e.g., \texttt{Node}, \texttt{Element}, \texttt{SectionProperties}) to represent FE entities in memory. The \texttt{INPParser} class provides robust static methods to handle the case-insensitive and whitespace-variable nature of Abaqus keywords.
+
+\subsection{2. Geometry Extraction}
+\textbf{File:} \texttt{process.py}
+
+Responsible for interpreting the physical model described in the input file.
+\begin{itemize}
+    \item \textbf{Entity Reading:} The \texttt{ReadEntities} class iterates through the file to construct lists of nodes and elements.
+    \item \textbf{Section Mapping:} The \texttt{SectionReader} maps geometric properties (like Shell Thickness) to specific element sets.
+    \item \textbf{Region Filtering:} Utilities like \texttt{RegionElementExtractor} allow extracting specific subsets of elements based on bounding boxes ($x_{min}, x_{max}$), facilitating localized analysis.
+\end{itemize}
+
+\subsection{3. Model Modification (The "Injector")}
+\textbf{File:} \texttt{modifier.py}
+
+The core engine for Residual Stress Analysis, allowing the injection of external data into an existing simulation deck.
+\begin{itemize}
+    \item \textbf{Stress Generation:} The \texttt{InitialStressGenerator} converts dictionary-based stress data into formatted \texttt{*Initial Conditions, type=STRESS} blocks.
+    \item \textbf{Safe Insertion:} The \texttt{INPInserter} locates safe injection points within the file structure (e.g., placing Boundary Conditions inside the correct \texttt{*Step}) to ensure the generated file runs without syntax errors.
+\end{itemize}
+
+\subsection{4. Execution Wrappers}
+\textbf{File:} \texttt{runners.py}
+
+Abstracts the command-line calls to the solver. The \texttt{AbaqusJobRunner} manages the execution of jobs, handling configuration parameters like CPU cores and GPU acceleration flags automatically.
+
+\input{Chapters/Simulations/Inp/dataclasses}
+\input{Chapters/Simulations/Inp/parser}
+\input{Chapters/Simulations/Inp/io}
+\input{Chapters/Simulations/Inp/modifier}
+\input{Chapters/Simulations/Inp/process}
+\input{Chapters/Simulations/Inp/runners}
