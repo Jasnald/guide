@@ -1,0 +1,21 @@
+\part{Notebooks}
+\label{part:notebooks}
+
+The \texttt{notebook/} directory contains three Jupyter notebooks used for interactive inspection of intermediate and final results. They are \emph{read-only diagnostic tools}: they do not alter any pipeline data and can be executed independently of the main workflow.
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lll}
+\hline
+\textbf{File} & \textbf{Experiment} & \textbf{Purpose} \\
+\hline
+\texttt{e1\_sim\_plot.ipynb}  & Exp1 & 3-D / 2-D surface reconstruction from polynomial JSON \\
+\texttt{e2\_sim\_plot.ipynb}  & Exp2 & 1-D curve-fit quality check and overlay plot \\
+\texttt{inp\_bc\_viewer.ipynb} & Both & Boundary-condition displacement map from \texttt{.inp} file \\
+\hline
+\end{tabular}
+\end{table}
+
+\input{Chapters/Notebooks/nb01_e1_sim_plot}
+\input{Chapters/Notebooks/nb02_e2_sim_plot}
+\input{Chapters/Notebooks/nb03_inp_bc_viewer}

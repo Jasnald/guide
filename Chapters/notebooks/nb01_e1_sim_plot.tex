@@ -1,0 +1,56 @@
+\chapter{\texttt{e1\_sim\_plot.ipynb} --- Exp1 Surface Reconstruction}
+\label{ch:nb_e1_sim_plot}
+
+\textbf{File:} \texttt{notebook/e1\_sim\_plot.ipynb}\\
+\textbf{Dependencies:} \texttt{numpy}, \texttt{matplotlib}, \texttt{exp\_process.core.mesher}, \texttt{exp\_process.core.fitter}, \texttt{exp\_process.utils.io}, \texttt{processor}
+
+\section{Purpose}
+
+This notebook reconstructs and visualises the deformed surface of the Experiment~1 T-shaped specimen from the polynomial model coefficients produced by the \texttt{exp\_process} pipeline (Chapter~\ref{part:expdata}). Its main use is a \emph{post-fit sanity check}: it renders the fitted surface on the actual T-profile mesh so that the analyst can confirm that the polynomial represents the measured deformation correctly before using it in the simulation.
+
+\section{Workflow}
+
+\subsection{Cell 1 --- Imports and Path Setup}
+
+Appends \texttt{src/} to \texttt{sys.path} and imports the four project modules used downstream:
+
+\begin{itemize}
+    \item \texttt{MeshGenerator} --- creates a scattered point grid over the T-profile geometry.
+    \item \texttt{Fitter} --- evaluates a 2-D polynomial on the grid.
+    \item \texttt{IOUtils} --- JSON loader.
+    \item \texttt{ExpProcessor} --- reads the sample geometry file (\texttt{.py}) and returns dimension parameters.
+\end{itemize}
+
+\subsection{Cell 2 --- Load Geometry and Model}
+
+\begin{enumerate}
+    \item Reads \texttt{data/input/exp1/exp1\_sample01.py} through \texttt{ExpProcessor.process()} to obtain the T-profile dimensions (\texttt{h\_width}, \texttt{v\_height}, etc.).
+    \item Loads the target JSON from \texttt{data/output/exp1/surface\_data/} --- default \texttt{Average.json}. The file name is configurable via \texttt{model\_name}.
+    \item Calls \texttt{MeshGenerator.t\_shape\_grid(t\_dims, step=0.5)} to generate a 2-D scatter grid with 0.5\,mm resolution over the T-profile domain.
+    \item Evaluates the polynomial: $z = \texttt{Fitter.eval\_2d\_poly}(x, y, \texttt{model\_data})$.
+\end{enumerate}
+
+\begin{quote}
+    \textbf{Where to change:} Modify \texttt{model\_name} to inspect any other JSON in \texttt{surface\_data/} (e.g.\ \texttt{S1\_Top.json}). Adjust \texttt{step\_size} to increase or decrease mesh density.
+\end{quote}
+
+\subsection{Cell 3 --- 3-D Surface Plot}
+
+Renders a \texttt{scatter3D} plot with:
+\begin{itemize}
+    \item Axes: $X$ (mm), $Y$ (mm), $Z$ (deformation amplitude).
+    \item Colour map: \texttt{viridis}, mapped to $Z$ values.
+    \item Aspect ratio locked to $(X_{\text{range}}, Y_{\text{range}}, X_{\text{range}})$.
+\end{itemize}
+
+\subsection{Cell 4 --- 2-D Heatmap}
+
+Renders a top-view scatter plot with \texttt{RdBu\_r} colormap (square markers, 2\,pt), giving an immediate visual of the surface topology projected onto the XY-plane.
+
+\section{Expected Output}
+
+Two Matplotlib figures, inline:
+\begin{enumerate}
+    \item A 3-D perspective view of the reconstructed surface mapped onto the T-profile shape.
+    \item A 2-D heatmap showing the spatial distribution of the deformation amplitude.
+\end{enumerate}

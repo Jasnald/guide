@@ -1,0 +1,225 @@
+\chapter{Graphical Interfaces}
+\label{ch:sim_gui}
+
+\textbf{Module:} \texttt{src/simulations/gui/}
+
+This sub-package provides two standalone desktop applications used at different stages of the simulation workflow:
+
+\begin{itemize}
+    \item \texttt{plane\_selector.py} --- cutting-plane configuration (pre-processing, \textbf{customtkinter}).
+    \item \texttt{answer\_viewer.py} --- 3-D result visualization (post-processing, \textbf{PyQt5 + PyVista}).
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────
+\section{\texttt{plane\_selector.py} --- Cutting Plane Configurator}
+\label{sec:gui_plane}
+
+\textbf{Dependencies:} \texttt{customtkinter}, \texttt{matplotlib}, \texttt{tkinter.messagebox}, \texttt{processor} (project-internal).
+
+\subsection{Purpose}
+
+Before the RSA workflow can run, the cutting-plane coordinates (\texttt{plane\_zx}, \texttt{plane\_zy}) and the material-removal region must be defined. These values are saved in a JSON file (e.g.\ \texttt{e1\_plane\_settings.json} or \texttt{e2\_plane\_settings.json}) and consumed by the CAE scripts documented in Chapter~\ref{sec:rsa_script}.
+
+\texttt{plane\_selector.py} provides an interactive GUI that lets the user adjust these parameters visually and write them back to disk with a single click.
+
+\subsection{Architecture}
+
+The module follows the \textbf{Model--View} pattern with two classes:
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lp{10cm}}
+\hline
+\textbf{Class} & \textbf{Role} \\
+\hline
+\texttt{PlaneSettingsModel} & JSON I/O: loads and saves \texttt{plane\_zx}, \texttt{plane\_zy}, and \texttt{remove\_region} to/from a \texttt{.json} file. Falls back to hard-coded defaults if the file is missing or unreadable. \\
+\texttt{ContourPlaneApp(ctk.CTk)} & Main window. Contains a sidebar with input fields and a Matplotlib canvas for the 2-D preview. \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{JSON Schema}
+
+The persisted file has the following structure:
+
+\begin{lstlisting}[language=Python]
+{
+    "plane_zx": {"point": [0.0, <Y_pos>, 0.0], "normal": [0.0, 1.0, 0.0]},
+    "plane_zy": {"point": [<X_pos>, 0.0, 0.0], "normal": [1.0, 0.0, 0.0]},
+    "remove_region": [<ref_x>, <ref_y>]
+}
+\end{lstlisting}
+
+\begin{itemize}
+    \item \texttt{plane\_zx} --- horizontal cut: the $Y$ coordinate of the cutting plane. Normal $\hat{y}$.
+    \item \texttt{plane\_zy} --- vertical cut: the $X$ coordinate of the cutting plane. Normal $\hat{x}$.
+    \item \texttt{remove\_region} --- a 2-D reference point that indicates \emph{which side} of the cut is removed.
+\end{itemize}
+
+\subsection{Geometry Detection}
+
+The application infers the specimen shape from the JSON filename:
+\begin{itemize}
+    \item \texttt{e1} / \texttt{exp1} $\rightarrow$ Experiment~1 T-profile (loads \texttt{exp1\_sample01.py} via \texttt{processor.ExpProcessor}).
+    \item \texttt{e2} / \texttt{exp2} $\rightarrow$ Experiment~2 block (loads \texttt{exp2\_sample.py}).
+\end{itemize}
+
+If the geometry file cannot be resolved, a 50\,mm $\times$ 50\,mm fallback square is drawn.
+
+\subsection{Visualization}
+
+\texttt{update\_plot()} redraws the Matplotlib canvas:
+\begin{enumerate}
+    \item Draws the specimen outline as a \texttt{Polygon} (T-profile or rectangular block).
+    \item Overlays a red hatched rectangle for the material-removal zone, computed from the cut positions and the reference point.
+    \item Renders horizontal and vertical dashed lines for the ZX and ZY planes.
+    \item Plots the reference removal point as a red dot.
+\end{enumerate}
+
+\subsection{Entry Point}
+
+\begin{lstlisting}[language=Python]
+from simulations.gui.plane_selector import run_gui
+run_gui("data/e1_plane_settings.json")
+\end{lstlisting}
+
+\texttt{run\_gui(path)} instantiates \texttt{ContourPlaneApp} and enters the Tkinter main loop. On \textbf{SAVE JSON} the settings are written and the window closes.
+
+% ─────────────────────────────────────────────────────────────
+\section{\texttt{answer\_viewer.py} --- XDMF / HDF5 Result Viewer}
+\label{sec:gui_viewer}
+
+\textbf{Dependencies:} \texttt{PyQt5}, \texttt{pyvistaqt}, \texttt{pyvista}, \texttt{h5py}, \texttt{numpy}, \texttt{matplotlib}, \texttt{xml.etree.ElementTree}.
+
+\subsection{Purpose}
+
+After the pipeline converts ODB results to HDF5 (via \texttt{ResultConverter}), the engineer needs to inspect stress fields, displacements, and deformation modes interactively. \texttt{answer\_viewer.py} provides a desktop application that combines:
+\begin{itemize}
+    \item A 3-D finite-element renderer (PyVista \texttt{QtInteractor}).
+    \item A per-field colorbar and statistics panel.
+    \item Abaqus-style view controls, animation, and clipping driven by the same \texttt{plane\_settings.json} used in the simulation.
+\end{itemize}
+
+\subsection{Class: \texttt{XDMFHDFViewer(QMainWindow)}}
+
+\subsubsection{Internal State}
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lp{9cm}}
+\hline
+\textbf{Attribute} & \textbf{Description} \\
+\hline
+\texttt{h5\_file}        & Open \texttt{h5py.File} handle. \\
+\texttt{xdmf\_data}      & Parsed XDMF root element (optional metadata). \\
+\texttt{current\_model / step / frame / field}  & Active selection in the navigation combos. \\
+\texttt{coordinates}     & $N_{\text{pts}} \times 3$ numpy array of node positions. \\
+\texttt{connectivity}    & $N_{\text{elem}} \times n_{\text{npe}}$ element connectivity. \\
+\texttt{grid}            & \texttt{pv.UnstructuredGrid} built from the above. \\
+\texttt{element\_status}  & Binary mask ($1=$ active, $0=$ removed) for clipping. \\
+\texttt{removal\_cfg}     & Loaded \texttt{plane\_settings.json} (auto-detected per model). \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsubsection{HDF5 Layout Expectations}
+
+The viewer reads data from an HDF5 file with the following hierarchy:
+
+\begin{lstlisting}[language=Python]
+<model_name>/
+    geometry/
+        coordinates    # (N_pts, 3)
+        connectivity   # (N_elem, npe)
+    time_series/
+        <step_name>/
+            <frame_name>/
+                <field_name>  # (N, ...) dataset
+\end{lstlisting}
+
+Multiple models (e.g.\ \texttt{S1\_sample\_01}, \texttt{S2\_sample\_01}) can coexist in a single file; the \texttt{Model} combo box lists them.
+
+\subsubsection{UI Layout}
+
+The main window is arranged as a horizontal splitter:
+
+\begin{itemize}
+    \item \textbf{Left panel --- Control tabs:}
+    \begin{enumerate}
+        \item \textbf{Data tab:} View buttons (Abaqus-style $\pm X/Y/Z$, Iso~1/2, Fit, Ortho), file info, model selector, mesh info, step/frame/field combos, and ``Update Visualization'' button.
+        \item \textbf{Visualization tab:} Colormap selection (viridis, jet, coolwarm, \ldots), transparency slider, clipping mask toggle, wireframe/nodes checkboxes, deformation scale slider, and orthographic projection toggle.
+    \end{enumerate}
+    \item \textbf{Right panel --- 3-D viewport} (\texttt{pyvistaqt.QtInteractor}) with a bottom strip containing the colour legend and display-info panel (model, field, step/frame, min/max values).
+\end{itemize}
+
+\subsection{Mesh Construction}
+
+\texttt{build\_grid()} converts the HDF5 arrays into a PyVista \texttt{UnstructuredGrid}:
+\begin{itemize}
+    \item 8 nodes per element $\rightarrow$ \texttt{HEXAHEDRON}.
+    \item 4 nodes per element $\rightarrow$ \texttt{TETRA}.
+\end{itemize}
+
+The mesh is cached per model (\texttt{\_cached\_model}) and rebuilt only when the user switches to a different model.
+
+\subsection{Clipping Mask}
+
+When a model is selected, \texttt{\_load\_plane\_settings\_for\_model()} auto-selects the correct JSON:
+\begin{itemize}
+    \item Model name matching \texttt{S\textbackslash d+\_} $\rightarrow$ \texttt{e2\_plane\_settings.json}.
+    \item Otherwise $\rightarrow$ \texttt{e1\_plane\_settings.json}.
+\end{itemize}
+
+\texttt{\_build\_element\_mask()} then computes a bounding box from the ZX/ZY plane coordinates and the removal-region reference point. Element centroids outside the box are marked as removed (\texttt{element\_status = 0}). During rendering, \texttt{extract\_cells(alive\_ids)} passes only the active subset to PyVista.
+
+\subsection{Field Loading}
+
+\texttt{load\_field\_data()} reads the raw HDF5 dataset and maps it to \texttt{grid.point\_data} or \texttt{grid.cell\_data}, handling several storage layouts:
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lll}
+\hline
+\textbf{Field} & \textbf{Shape} & \textbf{Handling} \\
+\hline
+\texttt{displacement}   & $(N,3)$                & Nodal or cell vectors; enables deformed-shape rendering. \\
+\texttt{stress\_tensor}  & $(N,9)$                & Extracts $S_{33}$ (index 8) as scalar for display. \\
+Generic scalar          & $(N_{\text{pts}},)$ or $(N_{\text{elem}},)$ & Direct assignment. \\
+Gauss-point             & $(N_{\text{elem}} \times n_g,\ldots)$ & Averaged per element before assignment. \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Rendering}
+
+\texttt{render\_pyvista()} orchestrates the final display:
+\begin{enumerate}
+    \item Applies clipping if the mask checkbox is active.
+    \item For displacement fields, deforms the mesh by $\mathbf{u} \times s$ where $s$ is the deformation scale slider value.
+    \item Adds the mesh with the selected colormap, opacity, and wireframe options.
+    \item Vector fields are rendered via magnitude scalars; optional glyph arrows can be toggled.
+    \item The camera position is preserved between field/frame changes within the same model.
+\end{enumerate}
+
+\subsection{Animation}
+
+A \texttt{QTimer} drives frame-by-frame playback:
+\begin{itemize}
+    \item \texttt{next\_frame()} / \texttt{prev\_frame()} cycle through the \texttt{frame\_combo} entries.
+    \item Speed is configurable via \texttt{animation\_speed} (ms between frames).
+\end{itemize}
+
+\subsection{Export}
+
+\begin{itemize}
+    \item \textbf{Image:} \texttt{plotter.screenshot(path)} to PNG, JPEG, or PDF.
+    \item \textbf{Data:} Current field array saved as CSV (\texttt{np.savetxt}) or NPY (\texttt{np.save}).
+\end{itemize}
+
+\subsection{Entry Point}
+
+\begin{lstlisting}[language=Python]
+python -m simulations.gui.answer_viewer
+\end{lstlisting}
+
+Launches the \texttt{QApplication}, opens an empty window, and the user loads files via \textbf{File $\rightarrow$ Open HDF5}.

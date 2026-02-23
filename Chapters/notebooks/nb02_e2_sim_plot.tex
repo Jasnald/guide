@@ -1,0 +1,81 @@
+\chapter{\texttt{e2\_sim\_plot.ipynb} --- Exp2 Curve-Fit Visualisation}
+\label{ch:nb_e2_sim_plot}
+
+\textbf{File:} \texttt{notebook/e2\_sim\_plot.ipynb}\\
+\textbf{Dependencies:} \texttt{numpy}, \texttt{matplotlib}, \texttt{json}, \texttt{glob} (standard library only --- no project imports required)
+
+\section{Purpose}
+
+Experiment~2 produces 1-D polynomial fits (curves along the $X$ axis) for each sample, stored as JSON files in \texttt{data/output/exp2/curve\_data/}. This notebook provides two complementary views:
+
+\begin{enumerate}
+    \item \textbf{Per-sample fit quality:} raw input points vs.\ transformed points vs.\ fitted polynomial.
+    \item \textbf{Cross-sample overlay:} all fitted curves plotted on a single axis to compare repeatability across samples.
+\end{enumerate}
+
+\section{Workflow}
+
+\subsection{Cell 1 --- Imports and Configuration}
+
+Sets global Matplotlib style (\texttt{seaborn-v0\_8-whitegrid}) and defines \texttt{DATA\_DIR} pointing to \texttt{data/output/exp2/curve\_data/}.
+
+\subsection{Cell 2 --- Helper Functions}
+
+Three utility functions defined in this cell:
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lp{9.5cm}}
+\hline
+\textbf{Function} & \textbf{Description} \\
+\hline
+\texttt{load\_json(filename)} & Loads a JSON from \texttt{DATA\_DIR}; returns \texttt{None} with a warning if the file is not found. \\
+\texttt{extract\_points(data)} & Extracts $X$ and $Z$ coordinate arrays from \texttt{data["points"]}. Supports both 3-column $(X, Y, Z)$ and 2-column $(X, Z)$ layouts. \\
+\texttt{calculate\_poly(x, coeffs)} & Evaluates the polynomial via \texttt{np.polyval(coeffs, x)} (coefficients in descending degree order). \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Cell 3 --- Per-Sample Fit Quality Plot}
+
+\texttt{plot\_sample\_fit(sample\_id)} loads the pair \texttt{\{sample\_id\}\_Raw.json} and \texttt{\{sample\_id\}.json} and renders a two-panel figure:
+
+\begin{itemize}
+    \item \textbf{Left panel:} raw points (grey) and transformed points (blue) scatter --- allows inspection of the preprocessing stage.
+    \item \textbf{Right panel:} transformed points with the fitted polynomial superimposed as a red line.
+\end{itemize}
+
+The function is called automatically for every sample discovered by scanning \texttt{DATA\_DIR} for \texttt{*\_Raw.json} files.
+
+\subsection{Cell 4 --- Overlay Comparison Plot}
+
+Iterates over all non-raw, non-step JSON files in \texttt{curve\_data/} using \texttt{glob}. For each file:
+\begin{enumerate}
+    \item Reads \texttt{coeffs} (or the legacy key \texttt{params}).
+    \item Evaluates the polynomial over $x \in [0, 40]$\,mm with 200 points.
+    \item Plots it as a labelled line.
+\end{enumerate}
+
+The resulting figure shows all fitted curves together, making sample-to-sample variability immediately visible.
+
+\begin{quote}
+    \textbf{Where to change:} Adjust the \texttt{xs} range (\texttt{np.linspace(0, 40, 200)}) to match the physical sample length. The filtering condition \texttt{if "\_Raw" in filename or "\_Steps" in filename} can be extended to exclude additional intermediate files.
+\end{quote}
+
+\section{JSON Format}
+
+Both the per-sample and overlay cells expect JSON files with at least:
+
+\begin{lstlisting}[language=Python]
+{
+    "points": [[x0, y0, z0], ...],  # raw/processed point cloud
+    "coeffs": [a_n, ..., a_1, a_0]  # descending-degree polynomial coefficients
+}
+\end{lstlisting}
+
+\section{Expected Output}
+
+\begin{itemize}
+    \item One two-panel figure per detected sample (raw vs.\ fit).
+    \item One overlay figure with all final polynomial curves.
+\end{itemize}
