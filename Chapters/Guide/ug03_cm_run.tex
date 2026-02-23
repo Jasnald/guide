@@ -1,27 +1,52 @@
-\section{Step 2: Contour Method (CM) Simulation}
+\section{Step 3: Contour Method (CM) Simulation}
 \label{sec:guide_cm}
 
-\textbf{Goal:} Run the inverse calculation to reconstruct boundary conditions and solve for surface stresses.
+\textbf{Goal:} Generate INP files, run Abaqus jobs, extract ODB results, and convert them to XDMF/HDF5.
 
 \subsection{Action: Execution}
-Run the main orchestrator from the project root:
+
+Run from the project root (choose the experiment):
 
 \begin{lstlisting}[language=bash]
-python src/Simulations/cm_main.py
+# Experiment 1 -- run full pipeline (sim + conversion)
+python scripts/e1_simulation_run.py cm --all
+
+# Experiment 2
+python scripts/e2_simulation_run.py cm --all
 \end{lstlisting}
 
-The terminal will display progress logs: \texttt{[INFO] Processing Case: Mesh-0\_8--Length-50...}
+\textbf{Phase flags} (can be combined):
+\begin{table}[ht]
+\centering
+\begin{tabular}{ll}
+\hline
+\textbf{Flag} & \textbf{Effect} \\
+\hline
+\texttt{--sim}  & Geometry generation + Abaqus job submission only. \\
+\texttt{--conv} & ODB extraction + NPY-to-XDMF conversion only. \\
+\texttt{--all}  & Both simulation and conversion phases. \\
+\hline
+\end{tabular}
+\end{table}
+
+With no arguments the script enters \textbf{interactive mode}, presenting numbered menus for pipeline and phase selection.
+
+\subsection{What Happens Internally}
+\begin{enumerate}
+    \item \texttt{ClearDirectory} removes stale results from \texttt{cm\_directory}.
+    \item \texttt{ParameterGenerator} builds the DOE matrix from \texttt{data/config.json}.
+    \item \texttt{GeometryGenerator} launches Abaqus CAE (\texttt{noGUI}) with \texttt{cma/script.py} (Exp1) or \texttt{cma2/script.py} (Exp2) per parameter set.
+    \item \texttt{ContourProcessor} applies polynomial boundary conditions to every mesh.
+    \item \texttt{INPRunner} submits all jobs.
+    \item \texttt{ResultConverter} extracts ODB data and converts to XDMF/HDF5.
+\end{enumerate}
 
 \subsection{Result Verification}
-Since the pipeline is automated, the system ensures data consistency before saving. Upon completion, you can locate the results in the \texttt{CM\_Directory} defined in your configuration.
 
-\textbf{Generated Outputs:}
-\begin{enumerate}
-    \item \textbf{Data Files:} Navigate to the \texttt{/xdmf\_hdf5\_files/} folder. You will find the converted results for each DOE case:
-    \begin{itemize}
-        \item \texttt{.xdmf} (Metadata for ParaView)
-        \item \texttt{.h5} (Heavy data storage)
-    \end{itemize}
+\textbf{Generated Outputs} (inside \texttt{cm\_directory}):
+\begin{itemize}
+    \item \texttt{*.xdmf} and \texttt{*.h5} --- one pair per DOE case, ready for the viewer.
+    \item \texttt{*.odb} --- Abaqus output databases.
+\end{itemize}
 
-    \item \textbf{Execution Logs:} Review \texttt{summary\_report.txt} to see the execution time for each simulation case.
-\end{enumerate}
+The terminal displays progress logs such as \texttt{[INFO] Processing Case: Mesh-0\_8--Length-50...}.

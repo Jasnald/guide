@@ -2,30 +2,50 @@
 \label{ch:user_guide}
 
 \section{Overview}
-This tutorial guides you through the complete Residual Stress Analysis workflow using the hybrid experimental-numerical framework.
+This tutorial guides you through the complete Residual Stress Analysis workflow for both Experiment~1 (T-shaped specimen) and Experiment~2 (milled block). All entry points are consolidated in the \texttt{scripts/} directory.
 
 \textbf{Workflow Summary:}
 \begin{enumerate}
-    \item \textbf{Configuration ($\sim$20 min):} Define material properties and Design of Experiments (DOE) ranges.
-    \item \textbf{Contour Method Simulation ($\sim$10 min):} Reconstruct surface stresses from experimental data.
-    \item \textbf{Residual Stress Analysis ($\sim$10 min):} Simulate the stress redistribution during the cutting process.
-    \item \textbf{Visualization:} Analyze results using ParaView.
+    \item \textbf{Data Processing ($\sim$5 min):} Pre-process raw measurement files and fit polynomial models to the experimental surface/curve data.
+    \item \textbf{Geometry Setup ($<$1 min):} Configure the cutting-plane positions using the interactive GUI and save them to \texttt{data/e\{n\}\_plane\_settings.json}.
+    \item \textbf{Contour Method Simulation ($\sim$10 min):} Build meshes, apply boundary conditions, and extract ODB results.
+    \item \textbf{Residual Stress Analysis ($\sim$10 min):} Map CM stresses onto the RSA mesh, inject initial conditions, and solve.
+    \item \textbf{Visualization:} Inspect results using the built-in \texttt{answer\_viewer} or ParaView.
 \end{enumerate}
 
 \begin{quote}
-    \textbf{Note:} These time values are done considered one simulation with a mesh after the convergence of the result, which means 50 thousand elements.
+    \textbf{Note:} Simulation times assume a mesh-converged run of approximately 50\,000 elements.
 \end{quote}
 
-\textbf{Expected Outcome:} By the end of this guide, you will have XDMF/HDF5 files representing the full 3D stress tensor field, ready for post-processing.
+\textbf{Expected Outcome:} XDMF/HDF5 files representing the full 3-D stress tensor field, ready for post-processing in the built-in viewer or ParaView.
+
+\section{Entry-Point Scripts}
+
+All user-facing commands live in \texttt{scripts/}:
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{ll}
+\hline
+\textbf{Script} & \textbf{Purpose} \\
+\hline
+\texttt{e1\_process\_run.py}    & Process Exp1 surface measurements (3-D T-profile). \\
+\texttt{e2\_process\_run.py}    & Process Exp2 curve measurements (1-D milling). \\
+\texttt{setup\_geometry.py}     & Launch the cutting-plane configurator GUI. \\
+\texttt{e1\_simulation\_run.py} & Unified CM + RSA runner for Experiment~1. \\
+\texttt{e2\_simulation\_run.py} & Unified CM + RSA runner for Experiment~2. \\
+\hline
+\end{tabular}
+\end{table}
 
 \section{Prerequisites}
 Before proceeding, ensure the following environment is set up:
 \begin{itemize}
-    \item \textbf{Abaqus 2021 or 2023:} Must be installed. The command \texttt{abq2021} (or equivalent) must be accessible via terminal or defined in the config.
-    \item \textbf{Python 3.10+:} Required for the pipeline orchestration.
+    \item \textbf{Abaqus 2021 or 2023:} Must be installed. The command \texttt{abq2021} (or equivalent) must be accessible via terminal or defined in \texttt{data/config.json}.
+    \item \textbf{Python 3.10+:} Required for all pipeline orchestration scripts.
     \item \textbf{Dependencies:} Install required packages:
     \begin{lstlisting}[language=bash]
-    pip install -r requirements.txt
+pip install -r requirements.txt
     \end{lstlisting}
-    \item \textbf{Project Structure:} Ensure the \texttt{src/} folder matches the architecture defined in Chapter \ref{ch:introduction}.
+    \item \textbf{Input data:} Raw measurement files placed in \texttt{data/input/exp1/} and \texttt{data/input/exp2/}.
 \end{itemize}

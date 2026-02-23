@@ -4,23 +4,45 @@
 \subsection{Common Issues}
 
 \begin{description}
-    \item[Error: "Abaqus command not found"] \hfill \\
-    The pipeline cannot find the solver. Edit \texttt{config.json} manually or via GUI and ensure \texttt{"abaqus\_cmd"} points to the full path of your batch file (e.g., \texttt{C:/SIMULIA/Commands/abq2021.bat}).
+    \item[Error: ``Abaqus command not found''] \hfill \\
+    The pipeline cannot find the solver. Open \texttt{data/config.json} in a text editor and set \texttt{"abaqus\_cmd"} to the full path of your batch file, e.g.\ \texttt{C:/SIMULIA/Commands/abq2021.bat}.
 
     \item[Simulation Hangs / Convergence Failure] \hfill \\
-    Check the \texttt{.msg} file in the simulation directory. 
+    Inspect the \texttt{.msg} file in the job sub-directory inside \texttt{cm\_directory} or \texttt{rea\_directory}.
     \begin{itemize}
-        \item If "Too many increments": Increase \texttt{maxNumInc} in the GUI.
-        \item If "Time increment too small": Your mesh might be too distorted. Try a larger \texttt{Mesh Size} in the DOE settings.
+        \item ``Too many increments'': Increase \texttt{maxNumInc} in \texttt{data/config.json}.
+        \item ``Time increment too small'': The mesh may be too distorted; increase the mesh-size lower bound in the DOE settings.
     \end{itemize}
 
-    \item[Missing HDF5 Files] \hfill \\
-    This usually means the Abaqus Python extraction failed. Check if you have write permissions in the directory or if the disk is full.
+    \item[Missing HDF5 / XDMF Files] \hfill \\
+    The Abaqus Python ODB extraction failed. Check write permissions in the output directory or available disk space. Re-run the conversion phase only:
+    \begin{lstlisting}[language=bash]
+python scripts/e1_simulation_run.py cm --conv
+    \end{lstlisting}
+
+    \item[Stress Mapping Produces All Zeros] \hfill \\
+    The CMA HDF5 path pointed to by \texttt{cm\_hdf5\_path} inside the RSA pipeline does not contain valid data. Re-run \texttt{cm --all} first, or pass \texttt{--cma} to the RSA runner:
+    \begin{lstlisting}[language=bash]
+python scripts/e1_simulation_run.py rsa --cma --sim
+    \end{lstlisting}
+
+    \item[Viewer Shows No Elements] \hfill \\
+    The clipping mask may be removing everything. Toggle \textbf{Apply clipping mask} off in the Visualization tab or verify that \texttt{data/e\{n\}\_plane\_settings.json} contains valid plane coordinates (regenerate with \texttt{setup\_geometry.py} if needed).
 \end{description}
 
+\subsection{Advanced: Running Individual Phases}
+
+Each runner supports granular control. For example, to regenerate geometry only for Exp2 RSA without re-mapping stresses:
+\begin{lstlisting}[language=bash]
+python scripts/e2_simulation_run.py rsa --sim
+\end{lstlisting}
+
 \subsection{Advanced: Customizing Geometry}
-To analyze a shape other than the standard T-part:
+
+To adjust the specimen dimensions:
 \begin{enumerate}
-    \item Edit \texttt{src/Exp\_Data/s1\_exp/mean\_dim.py} to update the physical dimensions.
-    \item Run \texttt{attempt.py} manually once to verify the new geometry builds correctly in Abaqus CAE before running the full batch.
+    \item Edit the sample geometry file in \texttt{data/input/exp\{n\}/exp\{n\}\_sample01.py}.
+    \item Run the process script to re-fit the polynomial model.
+    \item Re-run \texttt{setup\_geometry.py} to confirm that the updated outline is displayed correctly before starting simulations.
+    \item Run \texttt{rsa/script.py} (Exp1) or \texttt{rsa2/script.py} (Exp2) standalone in Abaqus CAE to verify the new mesh builds correctly before launching a full batch.
 \end{enumerate}

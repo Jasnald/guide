@@ -1,34 +1,53 @@
-\section{Step 3: Residual Stress Analysis (RSA)}
+\section{Step 4: Residual Stress Analysis (RSA)}
 \label{sec:guide_rsa}
 
-\textbf{Goal:} Map the CM results onto a new geometry (machining state) and simulate stress redistribution.
+\textbf{Goal:} Map the CMA stress field onto the RSA mesh, inject \texttt{*Initial Conditions}, solve, and convert results.
 
 \subsection{Action: Execution}
-Open \texttt{src/Simulations/rs\_main.py} in your editor. Locate the \texttt{main()} call at the bottom and ensure the flags are set:
 
-\begin{lstlisting}[language=Python]
-if __name__ == "__main__":
-    # run_cma=False (Skip Step 2 if already done)
-    # run_rsa=True  (Execute this step)
-    main(run_cma=False, run_rsa=True)
-\end{lstlisting}
-
-Run the script:
 \begin{lstlisting}[language=bash]
-python src/Simulations/rs_main.py
+# Experiment 1 -- run full RSA (includes CMA dependency)
+python scripts/e1_simulation_run.py rsa --all
+
+# Experiment 2
+python scripts/e2_simulation_run.py rsa --all
 \end{lstlisting}
 
-\subsection{What is happening?}
+\textbf{Phase flags for RSA:}
+\begin{table}[ht]
+\centering
+\begin{tabular}{ll}
+\hline
+\textbf{Flag} & \textbf{Effect} \\
+\hline
+\texttt{--cma}  & Re-run the CMA pipeline first (ensures fresh HDF5 source data). \\
+\texttt{--sim}  & Stress mapping + Abaqus job submission only. \\
+\texttt{--conv} & ODB extraction + NPY-to-XDMF conversion only. \\
+\texttt{--all}  & \texttt{--cma} + \texttt{--sim} + \texttt{--conv}. \\
+\hline
+\end{tabular}
+\end{table}
+
+If CMA results from Step~3 are already up to date, skip the CMA re-run:
+\begin{lstlisting}[language=bash]
+python scripts/e1_simulation_run.py rsa --sim --conv
+\end{lstlisting}
+
+\subsection{What Happens Internally}
 \begin{enumerate}
-    \item \textbf{Geometry Gen:} The script creates new `.inp` files for the RSA geometry.
-    \item \textbf{Mapping:} It uses a KDTree algorithm to interpolate stress tensors from the CM mesh to the RSA mesh.
-    \item \textbf{Injection:} It modifies the input files to add \texttt{*Initial Conditions, type=STRESS}.
+    \item \texttt{ClearDirectory} purges \texttt{rea\_directory}.
+    \item \texttt{GeometryGenerator} builds RSA meshes using \texttt{rsa/script.py} (Exp1) or \texttt{rsa2/script.py} (Exp2).
+    \item \texttt{Nodes\_main} extracts element centroids from the RSA mesh.
+    \item \texttt{StressProcessor} (Exp1) or \texttt{StressProcessorBatch} (Exp2) maps $S_{33}$ from the CMA HDF5 source onto the RSA centroids via KDTree.
+    \item \texttt{ResidualProcessor} injects \texttt{*Initial Conditions, type=STRESS} into every \texttt{.inp}.
+    \item \texttt{INPRunner} submits all jobs.
+    \item \texttt{ResultConverter} extracts ODB data and converts to XDMF/HDF5.
 \end{enumerate}
 
 \subsection{Verification}
-Navigate to the \texttt{REA\_Directory} (e.g., \texttt{C:/Simulation/Residual\_Stresses\_Analysis}).
+Check \texttt{rea\_directory}:
 \begin{itemize}
-    \item Look for the \texttt{Output} folder.
-    \item Ensure that for each case, a \texttt{stress\_input.txt} or similar CSV file exists (this proves mapping was successful).
-    \item Check if the final \texttt{.odb} files are generated in the job folders.
+    \item CSV files per case confirm that stress mapping completed successfully.
+    \item \texttt{*.h5} / \texttt{*.xdmf} files confirm successful conversion.
+    \item Abaqus \texttt{.odb} files are present in each job sub-directory.
 \end{itemize}

@@ -1,31 +1,43 @@
-\section{Step 4: Visualizing Results}
+\section{Step 5: Visualizing Results}
 \label{sec:guide_vis}
 
-\textbf{Goal:} Interpret the results using ParaView.
+\textbf{Goal:} Inspect the XDMF/HDF5 output using the built-in viewer or ParaView.
 
-\subsection{Loading Data}
+\subsection{Option A: Built-in Viewer (\texttt{answer\_viewer.py})}
+
+Launch from the project root:
+\begin{lstlisting}[language=bash]
+python -m simulations.gui.answer_viewer
+\end{lstlisting}
+
 \begin{enumerate}
-    \item Open \textbf{ParaView}.
-    \item File $\rightarrow$ Open $\rightarrow$ Navigate to your output folder (e.g., \texttt{CM\_Directory/xdmf\_hdf5\_files/}).
-    \item Select a file, e.g., \texttt{Mesh-0\_8--Length-50.xdmf}.
-    \item Click \textbf{"Apply"} in the left properties panel.
+    \item \textbf{File $\rightarrow$ Open HDF5} --- select an \texttt{.h5} file from \texttt{cm\_directory} or \texttt{rea\_directory}.
+    \item Use the \textbf{Model} combo to switch between DOE cases.
+    \item Select \textbf{Step}, \textbf{Frame}, and \textbf{Field} (e.g., \texttt{stress\_tensor}).
+    \item Click \textbf{Update Visualization} or change any combo to refresh the 3-D view.
 \end{enumerate}
 
-\subsection{Analyzing Stresses}
+\textbf{Key controls:}
+\begin{itemize}
+    \item \textbf{View buttons (+X/+Y/+Z, Iso~1/2):} Abaqus-style camera presets.
+    \item \textbf{Clipping mask:} Automatically hides the removed material region using the plane settings loaded from \texttt{data/e\{n\}\_plane\_settings.json}.
+    \item \textbf{Deformation scale:} Amplifies displacement field for visual clarity.
+    \item \textbf{Export Image} / \textbf{Export Data:} Save a screenshot or the current field array as PNG or CSV/NPY.
+\end{itemize}
+
+\subsection{Option B: ParaView}
+
 \begin{enumerate}
-    \item In the toolbar, locate the variable selector (usually shows "Solid Color").
-    \item Change it to \textbf{"S"} (Stress Tensor).
-    \item In the component selector (next to "S"), choose:
-    \begin{itemize}
-        \item \textbf{S11:} Longitudinal Stress (typical interest for T-shapes).
-        \item \textbf{S33:} Normal Stress (to the cut plane).
-        \item \textbf{Mises:} Equivalent Von Mises stress.
-    \end{itemize}
+    \item Open \textbf{ParaView}.
+    \item \textbf{File $\rightarrow$ Open} $\rightarrow$ navigate to the output folder.
+    \item Select a \texttt{.xdmf} file and click \textbf{Apply}.
+    \item In the toolbar, change the variable to \texttt{stress\_tensor} and use \textbf{Split Field} to select the $S_{33}$ component.
 \end{enumerate}
 
 \subsection{Interpretation Hints}
 \begin{itemize}
-    \item \textbf{Red Zones (Positive):} Indicate Tensile Residual Stress.
-    \item \textbf{Blue Zones (Negative):} Indicate Compressive Residual Stress.
-    \item \textbf{Validation:} The stress perpendicular to the cut surface (S33) should be close to zero at the cut face (boundary condition enforcement).
+    \item \textbf{Red zones (positive):} Tensile residual stress.
+    \item \textbf{Blue zones (negative):} Compressive residual stress.
+    \item \textbf{Validation:} $S_{33}$ should be near zero at the cut face (boundary condition enforcement).
+    \item \textbf{Clipping mask off:} Disable the mask in the Visualization tab to inspect the full geometry including the removed region.
 \end{itemize}

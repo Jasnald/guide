@@ -1,41 +1,54 @@
-\section{Step 1: Simulation Configuration}
+\section{Step 1: Process Experimental Data}
 \label{sec:guide_config}
 
-\textbf{Goal:} Generate the master \texttt{config.json} file that controls all simulation parameters.
+\textbf{Goal:} Pre-process raw measurement files and compute polynomial surface/curve models that the simulation scripts will consume.
 
-\subsection{Action: Using the GUI}
-Navigate to the experiment data folder and launch the interface:
+\subsection{Experiment 1 --- 3-D Surface (T-profile)}
 
 \begin{lstlisting}[language=bash]
-cd src/Exp_Data/s1_exp
-python write_input_gui.py
+python scripts/e1_process_run.py
 \end{lstlisting}
 
-\subsection{Configuration Checklist}
-Fill in the fields as follows:
+Reads all measurement files from \texttt{data/input/exp1/}, applies the side-mirroring rule for \texttt{Side2}, fits a degree-4 2-D polynomial surface, and writes JSON results to \texttt{data/output/exp1/surface\_data/}.
 
+\subsection{Experiment 2 --- 1-D Curves (Milled Block)}
+
+\begin{lstlisting}[language=bash]
+python scripts/e2_process_run.py
+\end{lstlisting}
+
+Reads all curve measurement files from \texttt{data/input/exp2/}, applies mirroring for side \texttt{"2"}, fits a degree-2 polynomial with Ridge regularisation (\texttt{alpha=1.0}), and writes JSON results to \texttt{data/output/exp2/curve\_data/}.
+
+\subsection{Verification}
+After either script finishes, confirm that \texttt{*.json} files (including \texttt{Average.json} for Exp1) are present in the respective output directory. Use the notebooks in \texttt{notebook/} to visually inspect the fits before proceeding.
+
+\section{Step 2: Configure Cutting-Plane Geometry}
+\label{sec:guide_geometry}
+
+\textbf{Goal:} Define the ZX and ZY cutting-plane positions and the material-removal region. These values are saved to \texttt{data/e\{n\}\_plane\_settings.json} and consumed by the CAE scripts.
+
+\subsection{Action: Using the GUI}
+
+\begin{lstlisting}[language=bash]
+# Experiment 1
+python scripts/setup_geometry.py --e1
+
+# Experiment 2
+python scripts/setup_geometry.py --e2
+
+# Interactive selection
+python scripts/setup_geometry.py
+\end{lstlisting}
+
+The \texttt{plane\_selector} window opens (\texttt{customtkinter}). The specimen outline is drawn automatically from the sample geometry file.
+
+\subsection{Configuration}
 \begin{enumerate}
-    \item \textbf{Material Properties:}
-    \begin{itemize}
-        \item \textit{Elastic Modulus:} e.g., 210000 (MPa)
-        \item \textit{Poisson Ratio:} e.g., 0.3
-    \end{itemize}
-
-    \item \textbf{Design of Experiments (DOE):}
-    Define the search space for the sensitivity analysis.
-    \begin{itemize}
-        \item \textit{Mesh Range:} Min=0.6, Max=0.8, Step=0.1
-        \item \textit{Length Range:} Min=50, Max=100, Step=25
-    \end{itemize}
-    \textit{Note:} The software creates a job for every combination (e.g., Mesh0.6-Len50, Mesh0.6-Len75...).
-    \newline
-    \textit{Note:} If you put something like  Min=0.6, Max=0.6, Step=0.1, the software will break.
-
-    \item \textbf{Validation \& Save:}
-    \begin{itemize}
-        \item Click \textbf{"Save JSON"}: Confirm the success message.
-    \end{itemize}
+    \item \textbf{Plane ZX (Horizontal Cut):} Enter the Y position in mm. The horizontal dashed line updates in real time.
+    \item \textbf{Plane ZY (Vertical Cut):} Enter the X position in mm. The vertical dash-dot line updates.
+    \item \textbf{Removal Region:} Enter the reference point (X, Y) inside the region to be removed. The hatched rectangle shows which side will be cut away.
+    \item Click \textbf{SAVE JSON}: the file is written and the window closes automatically.
 \end{enumerate}
 
 \subsection{Verification}
-Go to \texttt{src/Exp\_Data/s1\_exp/config/} and check if \texttt{config.json} was created. Open it with a text editor to ensure the paths (e.g., \texttt{"work\_directory"}) match your machine's structure.
+Open \texttt{data/e1\_plane\_settings.json} (or \texttt{e2\_plane\_settings.json}) in a text editor and confirm that \texttt{plane\_zx}, \texttt{plane\_zy}, and \texttt{remove\_region} contain the expected coordinates.
