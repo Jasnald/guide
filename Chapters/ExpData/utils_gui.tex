@@ -1,0 +1,126 @@
+\section{Utilities and GUI}
+\label{sec:utils_gui}
+
+This section covers the two support modules of \texttt{exp\_process}: the I/O utilities in \texttt{utils/io.py} and the interactive point cloud viewer in \texttt{gui/viewer.py}. Neither module contains domain logic — they provide the plumbing that all other layers rely on.
+
+% ---------------------------------------------------------------------------
+\subsection{IOUtils — \texttt{utils/io.py}}
+\label{subsec:io_utils}
+% ---------------------------------------------------------------------------
+
+\textbf{File:} \texttt{utils/io.py}
+
+All JSON read and write operations in the module go through \texttt{IOUtils}. The class exists to centralise two concerns: handling NumPy types during serialisation, and providing a consistent file-naming convention for pipeline output.
+
+\subsubsection{NumpyEncoder}
+
+A custom \texttt{json.JSONEncoder} subclass that transparently converts NumPy scalars and arrays to native Python types before serialisation:
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{ll}
+\hline
+\textbf{NumPy type} & \textbf{Serialised as} \\
+\hline
+\texttt{np.integer}  & \texttt{int} \\
+\texttt{np.floating} & \texttt{float} \\
+\texttt{np.ndarray}  & \texttt{list} (via \texttt{.tolist()}) \\
+\hline
+\end{tabular}
+\caption{\texttt{NumpyEncoder} type mapping.}
+\end{table}
+
+This encoder is used automatically by all \texttt{save\_json} calls. It does not need to be imported or called directly — it is an implementation detail of the I/O layer.
+
+\subsubsection{Module-level vs.\ class-level functions}
+
+\texttt{io.py} exposes both module-level functions (\texttt{save\_json}, \texttt{load\_json}) and the same methods as static methods on \texttt{IOUtils}. The only behavioural difference is in \texttt{load\_json}:
+
+\begin{itemize}
+    \item Module-level \texttt{load\_json(filepath)} — raises \texttt{FileNotFoundError} if the file does not exist.
+    \item \texttt{IOUtils.load\_json(filepath)} — returns \texttt{None} if the file does not exist (safe for pipeline use).
+\end{itemize}
+
+All procedure modules use \texttt{IOUtils} (the class), so missing files produce a \texttt{[SKIP]} rather than a crash. The module-level functions are kept for standalone scripts or external callers that prefer an exception.
+
+\subsubsection{IOUtils.save\_result}
+
+The primary write method used by all procedures:
+
+\begin{lstlisting}[language=Python]
+IOUtils.save_result(output_dir: Path, name: str, data: dict) -> Path
+\end{lstlisting}
+
+Constructs the output path as \texttt{output\_dir / name.json}, serialises \texttt{data} with \texttt{NumpyEncoder}, creates \texttt{output\_dir} if it does not exist, and returns the resolved \texttt{Path}. The \texttt{name} argument is always the item identifier without extension: \texttt{"Side1"}, \texttt{"Side1\_Steps"}, \texttt{"Average"}, etc.
+
+\textbf{Where to change:}
+\begin{itemize}
+    \item \textbf{Different output format (e.g.\ CSV, HDF5):} replace \texttt{IOUtils.save\_result} calls in the relevant procedure. The core and pipeline layers do not call \texttt{save\_result} directly, so the change is isolated to the procedures.
+    \item \textbf{Custom file naming convention:} the \texttt{name} argument is controlled by each procedure. Change it there — \texttt{IOUtils} does not impose a naming scheme beyond the \texttt{.json} extension.
+    \item \textbf{Adding logging:} \texttt{save\_json} already calls \texttt{logger.info} on success. To change the log level or destination, configure the \texttt{logging} module at the application entry point; no changes to \texttt{io.py} are needed.
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+\subsection{PointCloudViewer — \texttt{gui/viewer.py}}
+\label{subsec:point_cloud_viewer}
+% ---------------------------------------------------------------------------
+
+\textbf{File:} \texttt{gui/viewer.py}
+
+\texttt{PointCloudViewer} is a Tkinter + Matplotlib GUI for manually inspecting and editing point cloud JSON files between the preprocessing and fitting steps. It is launched exclusively through \texttt{run\_validation()} (Section~\ref{subsec:validation}).
+
+\subsubsection{Layout}
+
+The window is split into two panels:
+\begin{itemize}
+    \item \textbf{Left panel} — Matplotlib canvas with the full navigation toolbar (zoom, pan, save figure). Displays the currently selected step or flat point cloud, with a polynomial model overlay when coefficients are present in the file.
+    \item \textbf{Right panel} — file/sample selector (dropdown), step list (listbox), instructions label, \textit{Save Changes} button, and an info label showing point count.
+\end{itemize}
+
+\subsubsection{Data types}
+
+When loading files from \texttt{input\_dir}, the viewer classifies each JSON file into one of three types based on its structure:
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lll}
+\hline
+\textbf{Type} & \textbf{Detected when} & \textbf{Example files} \\
+\hline
+\texttt{steps} & top-level \texttt{"steps"} key is a list & \texttt{Side1\_Steps.json} \\
+\texttt{flat}  & top-level \texttt{"points"} key is a list & \texttt{01\_Raw.json} \\
+\texttt{model} & neither key present & \texttt{Side1.json}, \texttt{Average.json} \\
+\hline
+\end{tabular}
+\caption{File type classification in \texttt{PointCloudViewer}.}
+\end{table}
+
+\texttt{model} files are loaded and shown in the dropdown but are not editable — they contain coefficient data, not raw points. The viewer overlays the fitted polynomial curve on the plot when it reads a \texttt{"coeffs"} key in the currently displayed file.
+
+On startup, the viewer auto-selects the first \texttt{steps} file found; if none exist, it selects the first file alphabetically.
+
+\subsubsection{Interactive editing}
+
+The core editing interaction is click-to-delete:
+\begin{enumerate}
+    \item Select a file from the dropdown.
+    \item Select a step from the listbox (or \textit{All Points} for flat files).
+    \item Click on a point in the canvas to remove it. The point nearest to the click within a picker tolerance of 5 pixels is deleted.
+    \item After editing, click \textit{Save Changes} to overwrite the JSON file on disk. The \texttt{modified} flag is set on any deletion and cleared on save.
+\end{enumerate}
+
+Deletions modify \texttt{data\_store} in memory. Nothing is written to disk until \textit{Save Changes} is clicked. Closing the window without saving discards all deletions.
+
+\subsubsection{Model overlay}
+
+When the selected file contains a \texttt{"coeffs"} key (i.e.\ a fitted model), the viewer renders the polynomial curve over the point cloud. The overlay is reconstructed each time \texttt{update\_plot()} is called from the stored axes limits, so it remains valid after point deletions change the scale.
+
+This also means that if you open a \texttt{model} file (e.g.\ \texttt{Side1.json} after fitting), you can visually verify the fit quality without running a separate script.
+
+\textbf{Where to change:}
+\begin{itemize}
+    \item \textbf{Picker tolerance too tight or too loose:} the value \texttt{picker=5} is hard-coded in \texttt{\_setup\_figure()}. Increase it if clicks are not registering; decrease it if adjacent points are accidentally deleted.
+    \item \textbf{Plot axes labels:} currently fixed to \texttt{"Y (mm)"} and \texttt{"Z (mm)"} in \texttt{\_setup\_figure()} and \texttt{update\_plot()}. If the data coordinate system changes, update both locations.
+    \item \textbf{Add undo support:} the viewer has no undo. To add it, keep a stack of point arrays in \texttt{update\_current\_points()} before overwriting, and add an \textit{Undo} button that pops the stack and redraws.
+    \item \textbf{View 3D surface data (Exp1):} the viewer currently projects onto a 2D Y/Z plane. To visualize the full 3D point cloud, replace \texttt{fig.add\_subplot(111)} with \texttt{fig.add\_subplot(111, projection='3d')} and adjust the scatter call — note this requires updating both \texttt{\_setup\_figure()} and \texttt{update\_plot()}.
+\end{itemize}

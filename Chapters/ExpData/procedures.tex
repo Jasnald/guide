@@ -3,16 +3,26 @@
 
 \textbf{Module path:} \texttt{src/exp\_process/procedures/}
 
-Procedures are the pipeline stages. Each procedure orchestrates core utilities into a named, configurable step: it reads input files, calls core methods, and writes JSON output. Procedures know about experiment types and file paths; core classes do not.
+Procedures are the named, configurable pipeline stages. They orchestrate core utilities into sequences: read input files, call core methods, write JSON output. Procedures carry knowledge of experiment types, file naming, and inter-step data layout. Core classes do not.
 
-All procedures follow the same pattern: receive a config dataclass, return a \texttt{\{id: Path\}} dict mapping each processed item to its output file. An empty dict means nothing was processed (missing files or empty data).
+\begin{itemize}
+    \item \textbf{Interface contract:} every procedure receives a config dataclass and returns a \texttt{\{id: Path\}} dict — one entry per processed item pointing to its output file. An empty dict means nothing was processed, either because no input files were found or all items failed their data checks.
+    \item \textbf{Side effects:} each procedure creates \texttt{output\_dir} on instantiation via \texttt{BasePreprocessConfig.\_\_post\_init\_\_}. No other global state is modified.
+    \item \textbf{Error strategy:} the procedures never raise on per-item failures; instead they print a \texttt{[SKIP]} message and continue. A crash-level exception only occurs when a core utility itself raises (e.g.\ corrupt JSON, numpy shape mismatch).
+\end{itemize}
+
+\textbf{Pipeline execution order} (both experiments share the same sequence):
+\begin{center}
+\texttt{preprocess} $\rightarrow$ \texttt{run\_validation} $\rightarrow$ \texttt{fit} $\rightarrow$ \texttt{compare\_exp1} (Exp1 only)
+\end{center}
+Each step reads the output directory of the previous step as its input directory.
 
 \subsection{Configuration Dataclasses}
 \label{subsec:proc_configs}
 
 \textbf{File:} \texttt{procedures/preprocess.py}
 
-\texttt{BasePreprocessConfig} is the shared base for all configs. It holds \texttt{input\_dir} and \texttt{output\_dir} as \texttt{Path} objects and creates \texttt{output\_dir} on instantiation.
+\texttt{BasePreprocessConfig} is the shared base for all configs. It holds \texttt{input\_dir} and \texttt{output\_dir} as \texttt{Path} objects and creates \texttt{output\_dir} on instantiation via \texttt{\_\_post\_init\_\_}. All other config classes inherit from it.
 
 \begin{table}[ht]
 \centering
@@ -21,8 +31,8 @@ All procedures follow the same pattern: receive a config dataclass, return a \te
 \textbf{Config} & \textbf{Field} & \textbf{Default} & \textbf{Description} \\
 \hline
 \multirow{4}{*}{\texttt{Exp1PreprocessConfig}}
-  & \texttt{outlier\_bottom} & \texttt{1.2} & IQR factor for bottom region. \\
-  & \texttt{outlier\_top}    & \texttt{1.2} & IQR factor for wall region. \\
+  & \texttt{outlier\_bottom} & \texttt{1.2} & IQR factor — bottom region. \\
+  & \texttt{outlier\_top}    & \texttt{1.2} & IQR factor — wall region. \\
   & \texttt{outlier\_general}& \texttt{1.5} & IQR factor for final merged cloud. \\
   & \texttt{step\_threshold} & \texttt{0.6} & Relative x-jump threshold (\%) for step detection. \\
 \hline
@@ -34,6 +44,10 @@ All procedures follow the same pattern: receive a config dataclass, return a \te
 \caption{Preprocessing config fields.}
 \end{table}
 
+\begin{remark}
+\texttt{outlier\_bottom} and \texttt{outlier\_top} are declared in \texttt{Exp1PreprocessConfig} but are not currently consumed by \texttt{preprocess\_exp1}. The refactored parser already delivers a merged bottom+wall point cloud, so only one cleaning pass (with \texttt{outlier\_general}) is applied. These fields are retained for potential future use — for example, if per-region cleaning needs to be reintroduced. Do not remove them without checking whether the per-region logic has been added back.
+\end{remark}
+
 \textbf{File:} \texttt{procedures/fitting.py}
 
 \begin{table}[ht]
@@ -43,11 +57,11 @@ All procedures follow the same pattern: receive a config dataclass, return a \te
 \textbf{Config} & \textbf{Field} & \textbf{Default} & \textbf{Description} \\
 \hline
 \multirow{2}{*}{\texttt{Exp1FittingConfig}}
-  & \texttt{high\_degree} & \texttt{4} & Degree for the detailed surface fit. \\
+  & \texttt{high\_degree} & \texttt{4} & Degree for the detailed 2D surface fit. \\
   & \texttt{fix\_rules}   & \texttt{None} & Transformation rules for \texttt{DataTransformer}. \\
 \hline
 \multirow{4}{*}{\texttt{Exp2FittingConfig}}
-  & \texttt{high\_degree}   & \texttt{2}    & Degree for the detailed curve fit. \\
+  & \texttt{high\_degree}   & \texttt{2}    & Degree for the detailed 1D curve fit. \\
   & \texttt{normalize\_x}   & \texttt{True} & Normalize x to $[-1,1]$ before fitting. \\
   & \texttt{ridge\_alpha}   & \texttt{1.0}  & Ridge regularization factor ($\lambda$). \\
   & \texttt{fix\_rules}     & \texttt{None} & Transformation rules for \texttt{DataTransformer}. \\
@@ -55,6 +69,13 @@ All procedures follow the same pattern: receive a config dataclass, return a \te
 \end{tabular}
 \caption{Fitting config fields.}
 \end{table}
+
+\textbf{Where to change — fitting parameters:} the most commonly tuned values are \texttt{high\_degree} and \texttt{ridge\_alpha}.
+\begin{itemize}
+    \item Increasing \texttt{high\_degree} captures finer residual shape but risks overfitting; start conservative (4 for Exp1, 2 for Exp2) and increase only when the residual clearly shows structured curvature.
+    \item \texttt{ridge\_alpha} for Exp2 only: values above \texttt{1.0} smooth the fit; values below \texttt{0.1} behave like ordinary least squares. If the fitted curve oscillates, raise this value.
+    \item \texttt{fix\_rules} applies coordinate corrections via \texttt{DataTransformer} before fitting; see Section~\ref{subsec:core_transformer} for syntax.
+\end{itemize}
 
 \subsection{preprocess\_exp1}
 \label{subsec:preprocess_exp1}
@@ -83,6 +104,13 @@ Output structure per side:
 }
 \end{lstlisting}
 
+\textbf{Where to change:}
+\begin{itemize}
+    \item \textbf{Too many outliers survive cleaning:} lower \texttt{outlier\_general} (e.g.\ \texttt{1.0}). If legitimate geometry near the edges is also being removed, raise it back and instead address the source in the parser.
+    \item \textbf{Steps are over-split or under-split:} adjust \texttt{step\_threshold}. Lower values make the segmenter more sensitive to small x-jumps (more steps); higher values require larger gaps before a new step is declared.
+    \item \textbf{Unexpected side IDs:} \texttt{TShapeParser.list\_ids} controls discovery — see Section~\ref{subsec:parser_t_shape}.
+\end{itemize}
+
 \subsection{preprocess\_exp2}
 \label{subsec:preprocess_exp2}
 
@@ -91,11 +119,17 @@ Output structure per side:
 Processes all samples found in \texttt{input\_dir}:
 
 \begin{enumerate}
-    \item \texttt{RecShapeParser.load(sample\_id)} — loads and averages L/R files.
+    \item \texttt{RecShapeParser.load(sample\_id)} — loads, reverses the right-side profile, and returns the L/R averaged point cloud.
     \item \texttt{IOUtils.save\_result} — writes \texttt{\{sample\_id\}\_Raw.json}.
 \end{enumerate}
 
-No outlier removal or segmentation occurs here for Exp2. The raw merged profile is saved as-is for manual inspection via the GUI before fitting.
+No outlier removal or segmentation occurs here for Exp2. The raw merged profile is saved as-is for manual inspection via the GUI before fitting. The averaging logic lives entirely inside \texttt{RecShapeParser} — see Section~\ref{subsec:parser_rec_shape}.
+
+\textbf{Where to change:}
+\begin{itemize}
+    \item \textbf{Add outlier removal before saving:} insert an \texttt{OutlierCleaner.filter\_iqr} call between the parser output and \texttt{IOUtils.save\_result}. Add the corresponding IQR field to \texttt{Exp2PreprocessConfig}.
+    \item \textbf{Raw data uses different column indices:} set \texttt{x\_col} and \texttt{z\_col} in the config to match the measurement file layout.
+\end{itemize}
 
 \subsection{fit\_exp1}
 \label{subsec:fit_exp1}
@@ -105,14 +139,22 @@ No outlier removal or segmentation occurs here for Exp2. The raw merged profile 
 For each \texttt{*\_Steps.json} in \texttt{input\_dir}:
 
 \begin{enumerate}
-    \item Flattens all step points into a single array.
+    \item Flattens all step points from all steps into a single array.
     \item Applies \texttt{DataTransformer.apply} if \texttt{fix\_rules} is set.
-    \item Fits a 2D polynomial of degree \texttt{high\_degree} and a degree-1 tilt baseline.
-    \item Subtracts baseline from the high-degree model via \texttt{ModelOps.subtract\_coeffs}.
-    \item Writes \texttt{\{side\_id\}.json} with the flattened model and points.
+    \item Fits a 2D polynomial of degree \texttt{high\_degree} — the detailed surface model.
+    \item Fits a degree-1 baseline (\texttt{\_LOW\_DEGREE = 1}) — captures global tilt only.
+    \item Subtracts baseline from the high-degree model via \texttt{ModelOps.subtract\_coeffs}, yielding the tilt-corrected residual.
+    \item Writes \texttt{\{side\_id\}.json} with the flattened model coefficients and the transformed point cloud.
 \end{enumerate}
 
-The degree-1 subtraction removes measurement tilt, isolating the residual surface shape. The constant \texttt{\_LOW\_DEGREE = 1} is defined at module level and shared across Exp1 and Exp2 fitting.
+The constant \texttt{\_LOW\_DEGREE = 1} is defined at module level in \texttt{fitting.py} and applies to both Exp1 and Exp2. Changing it affects all fitting procedures simultaneously.
+
+\textbf{Where to change:}
+\begin{itemize}
+    \item \textbf{Higher-order tilt correction:} change \texttt{\_LOW\_DEGREE} at the top of \texttt{fitting.py} to \texttt{2} or \texttt{3} if the measurement platform has a bowl-shaped drift rather than a simple tilt.
+    \item \textbf{Coordinate corrections:} pass a \texttt{fix\_rules} dict to the config. This is the correct place to flip axes or apply offsets — not inside the parser.
+    \item \textbf{Output contains only the model, not the raw points:} the points stored are \emph{after} \texttt{DataTransformer} is applied. If you need the untransformed points separately, add a raw-save step before the transformer call.
+\end{itemize}
 
 \subsection{fit\_exp2}
 \label{subsec:fit_exp2}
@@ -123,26 +165,65 @@ For each \texttt{*\_Raw.json} in \texttt{input\_dir}:
 
 \begin{enumerate}
     \item Applies \texttt{DataTransformer.apply} if \texttt{fix\_rules} is set.
-    \item Fits a 1D polynomial of degree \texttt{high\_degree} with optional normalization and Ridge regularization.
-    \item Fits a degree-1 baseline and subtracts it.
-    \item Writes \texttt{\{sample\_id\}.json} with the flattened model and points.
+    \item Fits a 1D polynomial of degree \texttt{high\_degree} via \texttt{Fitter.fit\_1d\_poly}, with optional x-normalization and Ridge regularization.
+    \item Fits a degree-1 baseline (\texttt{\_LOW\_DEGREE}) and subtracts it via \texttt{ModelOps.subtract\_coeffs}.
+    \item Writes \texttt{\{sample\_id\}.json} with the flattened model and the transformed point cloud.
 \end{enumerate}
+
+\textbf{Where to change:}
+\begin{itemize}
+    \item \textbf{Oscillating fit:} raise \texttt{ridge\_alpha} (e.g.\ \texttt{5.0} or \texttt{10.0}). If the curve is clearly non-linear but the fit is too flat, lower \texttt{ridge\_alpha} and/or increase \texttt{high\_degree} to 3.
+    \item \textbf{Disabling normalization:} set \texttt{normalize\_x = False} when the x-range of the data is already well-conditioned (e.g.\ values close to 0–1). With large x-ranges (e.g.\ millimetre data), keep \texttt{True} to avoid ill-conditioned polynomial matrices.
+\end{itemize}
 
 \subsection{compare\_exp1}
 \label{subsec:compare_exp1}
 
 \textbf{File:} \texttt{procedures/comparison.py}
 
-Reads \texttt{Side1.json} and \texttt{Side2.json} from \texttt{input\_dir}, averages their polynomial coefficients via \texttt{ModelOps.average\_models}, and writes \texttt{Average.json}. This is the final step of the Exp1 pipeline, producing a single reference surface from both measurement sides.
+Loads \texttt{Side1.json} and \texttt{Side2.json} from \texttt{input\_dir}, computes the coefficient-wise mean via \texttt{ModelOps.average\_models}, and writes \texttt{Average.json}. This is the final step of the Exp1 pipeline, producing a single reference surface from both measurement sides.
+
+Expected input files are hard-coded by name as \texttt{Side1.json} and \texttt{Side2.json}. If either file is missing, the function returns an empty dict and prints an error — no partial average is written.
+
+\textbf{Where to change:}
+\begin{itemize}
+    \item \textbf{More than two sides:} replace the two hard-coded \texttt{load\_json} calls with a loop over \texttt{glob("*.json")} (excluding \texttt{Average.json}) and pass the resulting list to \texttt{ModelOps.average\_models}. The averaging logic itself already supports arbitrary list lengths.
+    \item \textbf{Weighted average:} \texttt{ModelOps.average\_models} currently computes a simple mean. To weight by point count, modify that method in \texttt{core/operations.py} — the procedure does not need to change.
+\end{itemize}
 
 \subsection{run\_validation}
 \label{subsec:validation}
 
 \textbf{File:} \texttt{procedures/validation.py}
 
-Launches the \texttt{PointCloudViewer} GUI in a blocking Tkinter mainloop. Execution resumes only after the user closes the window. Called between preprocessing and fitting in both pipelines to allow manual removal of remaining outliers before fitting.
+Launches the \texttt{PointCloudViewer} GUI in a blocking Tkinter mainloop. Execution resumes only after the user closes the window. Intended to be called between preprocessing and fitting in both pipelines, allowing the researcher to inspect and manually edit individual step or raw-curve files before fitting locks in the data.
 
 \begin{lstlisting}[language=Python]
 from exp_process.procedures.validation import run_validation
+# Point at the preprocessing output directory
 run_validation(output_dir="data/processed/exp1")
 \end{lstlisting}
+
+The function handles window close gracefully: it calls \texttt{plt.close("all")} before destroying the Tkinter root to prevent matplotlib backends from leaving orphaned figure threads.
+
+\textbf{Where to change:}
+\begin{itemize}
+    \item \textbf{Run without blocking:} \texttt{run\_validation} always blocks because it calls \texttt{root.mainloop()}. If non-blocking behaviour is needed (e.g.\ automated testing), instantiate \texttt{PointCloudViewer} directly and manage the event loop manually.
+    \item \textbf{Auto-loading a specific file:} pass a specific JSON filename to \texttt{PointCloudViewer} via its constructor arguments — see Section~\ref{sec:utils_gui}.
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+\subsection{Adding a New Procedure}
+\label{subsec:proc_extend}
+% ---------------------------------------------------------------------------
+
+To add a procedure for a new experiment type:
+
+\begin{enumerate}
+    \item Create a config dataclass inheriting from \texttt{BasePreprocessConfig} in \texttt{preprocess.py} (or a new file). Add only the fields specific to that experiment.
+    \item Write the procedure function. Follow the contract: accept the config, return \texttt{\{id: Path\}}.
+    \item Import and expose it in \texttt{procedures/\_\_init\_\_.py}.
+    \item Wire it into the pipeline script (\texttt{pipeline/base.py} or a dedicated pipeline class).
+\end{enumerate}
+
+Do not put file I/O logic directly into core modules when adding a procedure. The division is intentional: core modules are stateless utilities; procedures own the file system layout.

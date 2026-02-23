@@ -1,0 +1,195 @@
+\section{Pipeline}
+\label{sec:pipeline}
+
+\textbf{Module path:} \texttt{src/exp\_process/pipeline/}
+
+The pipeline layer is the single entry point for running the full processing sequence. It composes the procedure functions from Section~\ref{sec:procedures} into an ordered, experiment-specific workflow, and exposes one method — \texttt{run()} — as the public interface.
+
+The separation of responsibilities is strict:
+\begin{itemize}
+    \item \textbf{Core} (Section~\ref{sec:core}) — stateless algorithms, no file I/O.
+    \item \textbf{Procedures} (Section~\ref{sec:procedures}) — named steps, each reads and writes files.
+    \item \textbf{Pipeline} — assembles steps into a sequence and manages data directories between them.
+\end{itemize}
+
+A pipeline object never calls core classes directly; it only calls procedures. This means if the internal algorithm of a step changes, only the relevant core module and possibly the procedure need to change — the pipeline stays untouched.
+
+% ---------------------------------------------------------------------------
+\subsection{BasePipeline}
+\label{subsec:base_pipeline}
+% ---------------------------------------------------------------------------
+
+\textbf{File:} \texttt{pipeline/base.py}
+
+\texttt{BasePipeline} is an abstract base class (\texttt{ABC}) that defines the execution contract for all experiment pipelines. It implements one concrete method — \texttt{run()} — and declares three abstract methods that subclasses must implement.
+
+\textbf{Execution sequence in \texttt{run()}:}
+\begin{enumerate}
+    \item \textbf{STEP 1 — Preprocess:} calls \texttt{self.\_preprocess()}, which returns the output directory path for the next step.
+    \item \textbf{STEP 2 — Validation (GUI):} passes that directory to \texttt{run\_validation()}, blocking until the user closes the viewer.
+    \item \textbf{STEP 3 — Fit:} calls \texttt{self.\_fit()}, which reads from the (now manually validated) preprocessing output.
+    \item \textbf{STEP 4 — Compare:} calls \texttt{self.\_compare()}, which defaults to a no-op; only \texttt{SurfacePipeline} overrides it.
+\end{enumerate}
+
+Each step prints a labelled header (\texttt{=== STEP N ===}) to stdout so progress is visible during a run.
+
+\textbf{Abstract interface:}
+\begin{table}[ht]
+\centering
+\begin{tabular}{lll}
+\hline
+\textbf{Method} & \textbf{Returns} & \textbf{Description} \\
+\hline
+\texttt{\_preprocess()} & \texttt{str} & Run preprocessing; return output directory path. \\
+\texttt{\_fit()}        & \texttt{None} & Run fitting on preprocessing output. \\
+\texttt{\_compare()}    & \texttt{None} & Optional post-fit comparison step. Base no-op. \\
+\hline
+\end{tabular}
+\caption{Abstract methods of \texttt{BasePipeline}.}
+\end{table}
+
+\textbf{Where to change:}
+\begin{itemize}
+    \item \textbf{Skip validation in automated runs:} the GUI call is hard-coded in \texttt{run()}. To skip it, override \texttt{run()} in the subclass and call the steps directly without \texttt{run\_validation}. This is the recommended approach for batch or CI runs.
+    \item \textbf{Add a new stage between fit and compare:} add a \texttt{\_post\_fit()} abstract method to \texttt{BasePipeline}, call it inside \texttt{run()} after \texttt{\_fit()}, and provide a default no-op implementation. Subclasses can then override it as needed.
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+\subsection{SurfacePipeline — Experiment 1}
+\label{subsec:surface_pipeline}
+% ---------------------------------------------------------------------------
+
+\textbf{File:} \texttt{pipeline/surface.py}
+
+\texttt{SurfacePipeline} implements the full 4-step sequence for Exp1 (T-Shape, 3D surface). It uses \texttt{Exp1PipelineConfig} as its single constructor argument.
+
+\textbf{Config structure:}
+\begin{lstlisting}[language=Python]
+from exp_process.pipeline.surface import SurfacePipeline, Exp1PipelineConfig
+from exp_process.procedures.preprocess import Exp1PreprocessConfig
+from exp_process.procedures.fitting import Exp1FittingConfig
+from exp_process.procedures.preprocess import BasePreprocessConfig
+
+cfg = Exp1PipelineConfig(
+    preprocess=Exp1PreprocessConfig(
+        input_dir="data/raw/exp1",
+        output_dir="data/processed/exp1/preprocess",
+    ),
+    fitting=Exp1FittingConfig(
+        input_dir="data/processed/exp1/preprocess",
+        output_dir="data/processed/exp1/fitting",
+        high_degree=4,
+    ),
+    comparison=BasePreprocessConfig(
+        input_dir="data/processed/exp1/fitting",
+        output_dir="data/processed/exp1/comparison",
+    ),
+)
+
+SurfacePipeline(cfg).run()
+\end{lstlisting}
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lll}
+\hline
+\textbf{Config field} & \textbf{Type} & \textbf{Purpose} \\
+\hline
+\texttt{preprocess} & \texttt{Exp1PreprocessConfig} & Parser, cleaning and segmentation settings. \\
+\texttt{fitting}    & \texttt{Exp1FittingConfig}    & Polynomial degree and transform rules. \\
+\texttt{comparison} & \texttt{BasePreprocessConfig} & Directories for Side1/Side2 averaging. \\
+\hline
+\end{tabular}
+\caption{\texttt{Exp1PipelineConfig} fields.}
+\end{table}
+
+Note that \texttt{fitting.input\_dir} must point to the \emph{same} directory as \texttt{preprocess.output\_dir}, and \texttt{comparison.input\_dir} must match \texttt{fitting.output\_dir}. These connections are not enforced automatically — the paths must be consistent in the config.
+
+\textbf{Where to change:}
+\begin{itemize}
+    \item \textbf{Paths are mismatched between steps:} ensure \texttt{preprocess.output\_dir}, \texttt{fitting.input\_dir}, \texttt{fitting.output\_dir}, and \texttt{comparison.input\_dir} form an unbroken chain.
+    \item \textbf{Skip the comparison step:} override \texttt{\_compare()} in a subclass and make it a no-op, or simply do not use the comparison output in downstream scripts.
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+\subsection{CurvePipeline — Experiment 2}
+\label{subsec:curve_pipeline}
+% ---------------------------------------------------------------------------
+
+\textbf{File:} \texttt{pipeline/curve.py}
+
+\texttt{CurvePipeline} implements the 3-step sequence for Exp2 (rectangular, 1D curve). The comparison step is not present — Exp2 has no two-side averaging. The \texttt{\_compare()} method inherits the no-op from \texttt{BasePipeline}.
+
+\textbf{Config structure:}
+\begin{lstlisting}[language=Python]
+from exp_process.pipeline.curve import CurvePipeline, Exp2PipelineConfig
+from exp_process.procedures.preprocess import Exp2PreprocessConfig
+from exp_process.procedures.fitting import Exp2FittingConfig
+
+cfg = Exp2PipelineConfig(
+    preprocess=Exp2PreprocessConfig(
+        input_dir="data/raw/exp2",
+        output_dir="data/processed/exp2/preprocess",
+    ),
+    fitting=Exp2FittingConfig(
+        input_dir="data/processed/exp2/preprocess",
+        output_dir="data/processed/exp2/fitting",
+        high_degree=2,
+        ridge_alpha=1.0,
+    ),
+)
+
+CurvePipeline(cfg).run()
+\end{lstlisting}
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lll}
+\hline
+\textbf{Config field} & \textbf{Type} & \textbf{Purpose} \\
+\hline
+\texttt{preprocess} & \texttt{Exp2PreprocessConfig} & Parser and column index settings. \\
+\texttt{fitting}    & \texttt{Exp2FittingConfig}    & Polynomial degree, normalization, Ridge $\lambda$. \\
+\hline
+\end{tabular}
+\caption{\texttt{Exp2PipelineConfig} fields.}
+\end{table}
+
+% ---------------------------------------------------------------------------
+\subsection{Adding a New Pipeline}
+\label{subsec:pipeline_extend}
+% ---------------------------------------------------------------------------
+
+To support a new experiment type:
+
+\begin{enumerate}
+    \item Create a new file \texttt{pipeline/my\_experiment.py}.
+    \item Define a \texttt{@dataclass} config aggregating the necessary procedure configs.
+    \item Subclass \texttt{BasePipeline}, implement \texttt{\_preprocess()} and \texttt{\_fit()}, and optionally \texttt{\_compare()}.
+    \item Return the preprocessing output directory as a \texttt{str} from \texttt{\_preprocess()} so the validation step receives the correct path.
+    \item Expose the new class in \texttt{pipeline/\_\_init\_\_.py}.
+\end{enumerate}
+
+The minimum skeleton:
+\begin{lstlisting}[language=Python]
+# pipeline/my_experiment.py
+from .base import BasePipeline
+from ..procedures.preprocess import MyPreprocessConfig, preprocess_my
+from ..procedures.fitting import MyFittingConfig, fit_my
+
+@dataclass
+class MyPipelineConfig:
+    preprocess: MyPreprocessConfig
+    fitting: MyFittingConfig
+
+class MyPipeline(BasePipeline):
+    def __init__(self, cfg: MyPipelineConfig):
+        self.cfg = cfg
+
+    def _preprocess(self) -> str:
+        preprocess_my(self.cfg.preprocess)
+        return str(self.cfg.preprocess.output_dir)
+
+    def _fit(self) -> None:
+        fit_my(self.cfg.fitting)
+\end{lstlisting}
