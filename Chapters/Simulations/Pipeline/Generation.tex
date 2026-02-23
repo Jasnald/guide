@@ -8,10 +8,11 @@ To maintain robustness across the pipeline, raw dictionary data loaded from JSON
 \subsection{Structure}
 The class groups parameters into logical domains:
 \begin{itemize}
-    \item \textbf{Paths:} Validated \texttt{Path} objects for working directories and scripts (e.g., \texttt{geometry\_script}).
+    \item \textbf{Paths:} Validated \texttt{Path} objects for working directories and scripts (e.g., \texttt{geometry\_script}, \texttt{polynomial\_json\_dir}, \texttt{polynomial\_json\_default}).
     \item \textbf{Physics:} Material properties like Elastic Modulus and Poisson's Ratio.
     \item \textbf{Meshing:} Range definitions (\texttt{min}, \texttt{max}, \texttt{step}) for Design of Experiments (DOE).
     \item \textbf{Solver:} Abaqus-specific flags such as \texttt{nlgeom} (Non-Linear Geometry) and time incrementation limits.
+    \item \textbf{Internal defaults:} \texttt{instance\_name}, \texttt{step\_name}, \texttt{nset\_disp\_name}, and \texttt{abaqus\_cmd} have sensible defaults and rarely need to be changed from the JSON.
 \end{itemize}
 
 \section{Automated Case Generation}

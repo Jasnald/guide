@@ -9,12 +9,12 @@ While the \texttt{Conversor} module (Part I) contains the low-level logic for ha
 The \texttt{ResultConverter} class manages the bridge between the different Python environments required for extraction:
 
 \begin{enumerate}
-    \item \textbf{Abaqus Extraction (Python 2.7):} 
-    The method \texttt{\_run\_abaqus\_extraction} triggers the \texttt{ODB\_2\_XDMF.py} script using the configured Abaqus command line. It wraps the call in an \texttt{AbaqusScriptRunner}, ensuring the proprietary ODB API is accessed correctly to dump raw data into NPY files.
+    \item \textbf{ODB Extraction (Abaqus Python 2.7):} 
+    The method \texttt{\_run\_abaqus\_extraction(script\_module)} locates \texttt{conv.py} inside the given sub-module folder (e.g., \texttt{src/simulations/cma/conv.py}) and invokes it via the Abaqus Python interpreter using \texttt{AbaqusScriptRunner}. This extracts raw field data from \texttt{.odb} files into \texttt{.npy} files.
     
     \item \textbf{XDMF Compilation (Python 3.x):} 
-    Immediately after extraction, the method \texttt{\_run\_npy\_to\_xdmf} invokes the \texttt{NpyBatchToXdmfConverter}. Since this runs in the modern pipeline environment, it efficiently compiles the raw arrays into hierarchical HDF5 files ready for visualization.
+    Immediately after extraction, \texttt{\_run\_npy\_to\_xdmf} instantiates \texttt{NPY2XDMFParameters} with the \texttt{method\_type} and \texttt{target\_dir\_key} arguments to resolve the correct source and destination directories. It then runs \texttt{NpyBatchToXdmfConverter} to compile the raw arrays into hierarchical HDF5/XDMF files.
 \end{enumerate}
 
 \subsection{Pipeline Integration}
-This converter is designed to be called at the end of a simulation workflow (e.g., inside \texttt{cm\_main.py}). It takes a \texttt{method\_type} (like "Contour Method") as an argument to correctly route the output files to their specific directories.
+This converter is designed to be called at the end of a simulation workflow (e.g., inside \texttt{cm\_main.py}). It takes a \texttt{method\_type} string (e.g., \texttt{"Contour\_Method"}) and a \texttt{target\_dir\_key} to correctly route the output files to their specific directories.
