@@ -55,8 +55,54 @@ The module depends on standard scientific Python libraries. All are listed in \t
 \end{itemize}
 
 \section{How to Run}
+\label{sec:exp_process_run}
 
-calma calma calma calma calma calma
+The \ texttt{scripts/} directory at the project root contains ready-made run scripts for each experiment. These handle the path setup, sample dimension reading, and pipeline configuration automatically — they are the intended entry point for day-to-day use.
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{ll}
+\hline
+\textbf{Script} & \textbf{Purpose} \\
+\hline
+\texttt{scripts/e1\_process\_run.py} & Full preprocessing pipeline for Experiment 1 (T-Shape, 3D surface). \\
+\texttt{scripts/e2\_process\_run.py} & Full preprocessing pipeline for Experiment 2 (Rectangular, 1D curve). \\
+\texttt{scripts/e1\_simulation\_run.py} & Simulation run for Experiment 1 (see simulation chapters). \\
+\texttt{scripts/e2\_simulation\_run.py} & Simulation run for Experiment 2 (see simulation chapters). \\
+\texttt{scripts/setup\_geometry.py} & Geometry preprocessing shared by both experiments. \\
+\hline
+\end{tabular}
+\caption{Scripts in \texttt{scripts/}.}
+\end{table}
+
+To run the processing pipeline for either experiment, execute the corresponding script from the project root:
+
+\begin{lstlisting}[language=bash]
+# From the project root:
+python scripts/e1_process_run.py   # Experiment 1
+python scripts/e2_process_run.py   # Experiment 2
+\end{lstlisting}
+
+Each script performs the following automatically:
+\begin{enumerate}
+    \item Adds \texttt{src/} to \texttt{sys.path} so \texttt{exp\_process} is importable without installation.
+    \item Reads sample dimensions from \texttt{data/input/exp\textit{N}/} via \texttt{ExpProcessor.process()} and derives any required geometric transformation rules (e.g.\ mirror axis for Exp1 Side2).
+    \item Assembles the full pipeline config (\ texttt{Exp1PipelineConfig} or \texttt{Exp2PipelineConfig}) with the correct input and output directories.
+    \item Calls \texttt{.run()} on the pipeline, which executes preprocessing, opens the validation GUI, runs fitting, and (Exp1 only) computes the averaged reference surface.
+\end{enumerate}
+
+Output is written to:
+\begin{itemize}
+    \item \textbf{Exp1:} \texttt{data/output/exp1/surface\_data/}
+    \item \textbf{Exp2:} \texttt{data/output/exp2/curve\_data/}
+\end{itemize}
+
+\textbf{What to change before running:}
+\begin{itemize}
+    \item \textbf{New sample file:} update the \texttt{sample\_path} variable at the top of the script to point to the correct sample definition file in \texttt{data/input/exp\textit{N}/}.
+    \item \textbf{Fitting parameters:} adjust \texttt{high\_degree}, \texttt{ridge\_alpha}, or \texttt{fix\_rules} directly in the config block. These are clearly marked in the script with section comments.
+    \item \textbf{Output directory:} change \texttt{OUTPUT\_DIR} at the top of the script; all sub-directories are derived from it automatically.
+\end{itemize}
 
 
 \section{File Structure}
@@ -92,14 +138,12 @@ src/exp_process/
         io.py             # JSON save/load utilities
 \end{verbatim}
 
-calma calma calma calma calma calma
-
 \section{Chapter Organization}
 
 The following sections document each layer in detail, including configuration parameters, extension points, and common modification scenarios.
 
-\input{Chapters/ExpData/parsers}
-\input{Chapters/ExpData/core}
-\input{Chapters/ExpData/procedures}
-\input{Chapters/ExpData/pipeline}
-\input{Chapters/ExpData/utils_gui}
+\input{Chapters/exp_process/parsers}
+\input{Chapters/exp_process/core}
+\input{Chapters/exp_process/procedures}
+\input{Chapters/exp_process/pipeline}
+\input{Chapters/exp_process/utils_gui}
