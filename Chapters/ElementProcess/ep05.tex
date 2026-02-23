@@ -1,52 +1,65 @@
 \section{Data-Driven Stress Mapping}
 \label{sec:ep_datadriven}
 
-\textbf{Script:} \texttt{s2\_RE\_ExnCon.py}
+\textbf{Script:} \texttt{stress\_mapping.py}
 
-This module implements the core logic for mapping experimental or simulation data onto a target finite element mesh. Unlike analytical generation methods, this script processes pre-calculated stress fields stored in HDF5 format and maps them to element centroids using spatial algorithms.
+Maps $S_{33}$ stress from the \texttt{S\_batch.h5} HDF5 source onto the target finite element mesh using a planar KDTree strategy. Used in the data-driven pipeline (Contour Method results).
 
-\subsection{Core Processor Architecture}
+\subsection{Constructor Parameters}
 
-The \texttt{StressProcessor} class encapsulates the entire mapping workflow. It is designed to be robust against large datasets by using chunked reading and efficient neighbor search structures.
+\begin{table}[ht]
+\centering
+\begin{tabular}{lll}
+\hline
+\textbf{Parameter} & \textbf{Default} & \textbf{Description} \\
+\hline
+\texttt{base\_dir}   & ---                & Directory containing \texttt{.inp} and \texttt{Output/} folders. \\
+\texttt{tolerance}  & \texttt{5e-2}     & $|z|$ threshold for the $z{=}0$ plane extraction. \\
+\texttt{chunk\_size} & \texttt{10000}    & Batch size for HDF5 read operations on large datasets. \\
+\hline
+\end{tabular}
+\caption{\texttt{StressProcessor} constructor parameters.}
+\end{table}
 
-\subsubsection{1. Simulation Discovery and Matching}
-The processor scans the working directory to pair mesh files with their corresponding results:
-\begin{itemize}
-    \item \textbf{Mesh Identification:} Finds files matching \texttt{Mesh-*--Lenth-*.inp}.
-    \item \textbf{Result Association:} For each mesh, it looks for a corresponding HDF5 file (e.g., \texttt{S\_batch.h5}) in the specified source folder. It uses regex patterns to ensure the correct Load Case (e.g., \texttt{step\_1\_Load}) is extracted.
-\end{itemize}
+\subsection{Mapping Strategy}
 
-\subsubsection{2. Spatial Mapping (KDTree)}
-The mapping of stress tensors from the source cloud (HDF5) to the target mesh (Element Centroids) is performed via a k-dimensional tree:
+The workflow uses a 2D KDTree in the $x$-$y$ plane rather than a full 3D tree. This is intentional: the Contour Method extracts a cut-plane measurement at $z = 0$, which is then projected onto all $z$-planes of the mesh.
 
 \begin{enumerate}
-    \item \textbf{Tree Construction:} A \texttt{scipy.spatial.KDTree} is built using the $(x, y, z)$ coordinates of the source data nodes.
-    \item \textbf{Querying:} For each target element centroid, the tree is queried to find the nearest source node within a specified \texttt{tolerance} (default $5 \times 10^{-2}$).
-    \item \textbf{Tensor Assignment:} The full stress tensor components ($\sigma_{11}, \sigma_{22}, \sigma_{33}, \tau_{12}, \tau_{13}, \tau_{23}$) from the nearest neighbor are assigned to the target element.
+    \item \texttt{read\_combined\_hdf5\_from\_folder} --- reads \texttt{S\_batch.h5} and extracts coordinates and \texttt{stress\_tensor[:, 8]} ($S_{33}$, index 8 in the 9-component tensor) for the first available step/frame.
+    \item \texttt{extract\_z0\_data\_by\_z} --- filters HDF5 nodes where $|z| <$ \texttt{tolerance} using vectorised \texttt{np.isclose}, returning the $z{=}0$ slice.
+    \item \texttt{create\_stress\_mapping\_by\_z} --- for each unique $Z$ plane in the mesh, builds a KDTree on $(x, y)$ of the $z{=}0$ source data and queries the centroid coordinates of all elements in that plane. KDTrees are cached by array hash to avoid rebuilding for repeated queries.
 \end{enumerate}
 
-\subsubsection{3. Abaqus Input Generation}
-The final output is an ASCII file formatted for direct inclusion in Abaqus:
-\begin{lstlisting}
-*Initial Conditions, type=STRESS, input=FileName.csv
-\end{lstlisting}
-The script writes the mapped stresses in the specific column order required by Abaqus for 3D elements, handling zero-padding for shear components if the source data is incomplete (e.g., 2D to 3D mapping).
+\subsection{Output Formats}
+
+\texttt{save\_organized\_data} and \texttt{create\_abaqus\_stress\_file} produce three output files per simulation:
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{ll}
+\hline
+\textbf{File} & \textbf{Format} \\
+\hline
+\texttt{stress\_mapping\_by\_z.json} & Full mapping with element coordinates and distances. \\
+\texttt{stress\_mapping\_by\_z.h5}   & Same structure in HDF5 for efficient downstream reads. \\
+\texttt{stress\_input.txt}           & Abaqus-format: \texttt{element\_id, 0, 0, S33, 0, 0, 0} per line. \\
+\hline
+\end{tabular}
+\caption{Output files from \texttt{stress\_mapping.py}.}
+\end{table}
 
 \subsection{Usage}
-The script can be executed directly or imported as a module:
 
 \begin{lstlisting}[language=Python]
-from Modules_python.s2_RE_ExnCon import StressProcessor
+from element_process.stress_mapping import StressProcessor
 
-# Initialize with tolerance configuration
 processor = StressProcessor(
-    base_dir="C:/Simulations", 
-    tolerance=0.05
+    base_dir="C:/Simulations/Residual_Stresses_Analysis",
+    tolerance=5e-2,
+    chunk_size=10000
 )
-
-# Run batch processing
 results = processor.process_all_simulations(
-    hdf5_folder="C:/Data/HDF5_Source"
+    hdf5_folder="C:/Simulations/Contour_Method/xdmf_hdf5_files"
 )
 \end{lstlisting}
-.

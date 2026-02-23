@@ -1,15 +1,37 @@
 \section{Stage 2: Analytical Stress Field Generation}
 \label{sec:ep_field_gen}
 
-\textbf{Script:} \texttt{s2\_RE\_Field.py}
+\textbf{Script:} \texttt{field\_analitic.py}
 
-This script generates a synthetic residual stress field for validation or initial condition setup. It creates a defined stress distribution (typically cylindrical) based on the geometric limits of the mesh.
+Generates a synthetic cylindrical residual stress field for validation or benchmarking when real measurement data is unavailable. Output is \texttt{residual\_stress.txt}, read by \texttt{interpolator.py} in the analytical pipeline.
 
-\subsection{Functionality}
+\subsection{CoordinateLimits Dataclass}
+
+A \texttt{@dataclass} was introduced to encapsulate the mesh bounding box and total node count. It replaces the previous loose variable passing:
+
 \begin{itemize}
-    \item \textbf{Mesh Generation:} 
-    Based on the coordinate limits ($x_{min}, x_{max}, \dots$) extracted from the model information, it generates a homogeneous cloud of points to represent the material volume.
-    
-    \item \textbf{Stress Calculation:} 
-    It computes the geometric center of the component and calculates stress components ($\sigma_{xx}, \sigma_{yy}, \dots$) analytically relative to this center. This is useful for creating benchmark fields when experimental data is unavailable.
+    \item \texttt{CoordinateLimits.from\_info\_file(path)} --- reads \texttt{element\_info.txt} produced by \texttt{extractor.py} and populates the limits via regex. Falls back to \texttt{default\_values()} if parsing fails.
+    \item \texttt{CoordinateLimits.default\_values()} --- returns hardcoded limits matching the reference mesh geometry, used when no info file is found.
 \end{itemize}
+
+\subsection{Homogeneous Mesh Generation}
+
+\texttt{generate\_homogeneous\_mesh(limits, target\_density=15)} creates a regular grid of points filling the bounding box. The number of divisions per axis is scaled proportionally to the axis range so that node spacing is uniform across all three dimensions:
+
+\begin{equation}
+    n_x = \max\!\left(2,\; \left\lfloor t \cdot \frac{x_{max}-x_{min}}{\Delta_{min}} \right\rfloor\right)
+\end{equation}
+
+where $t$ is \texttt{target\_density} and $\Delta_{min}$ is the smallest of the three axis ranges.
+
+\subsection{Stress Calculation}
+
+\texttt{calculate\_cylindrical\_stress(nodes, center)} computes cylindrical coordinates $(r, \theta)$ for each point relative to the geometric center, then assigns stress components as polynomial functions of the normalised 3D distance:
+
+\begin{align*}
+    \sigma_r &= 5000 \cdot \hat{d}^2 \\
+    \sigma_\theta &= 5000 \cdot \hat{d} \\
+    \sigma_z &= 5000 \cdot \hat{d}^{1.5}
+\end{align*}
+
+where $\hat{d} = d / d_{max}$. The output file stores all six stress components (including shear terms $\tau_{rt}, \tau_{rz}, \tau_{\theta z}$) in cylindrical coordinates. \texttt{interpolator.py} converts these to Cartesian before interpolation.

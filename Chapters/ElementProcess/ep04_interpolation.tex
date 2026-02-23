@@ -1,20 +1,51 @@
 \section{Stage 3: Field Interpolation}
 \label{sec:ep_interpolation}
 
-\textbf{Script:} \texttt{s3\_RE\_Interpolator.py}
+\textbf{Script:} \texttt{interpolator.py}
 
-The final stage maps the generated or measured stress field onto the target finite element mesh. This is critical because the source data (cloud of points) rarely matches the exact centroid locations of the simulation elements.
+Maps a source stress field (analytical or Abaqus-format) onto the target finite element mesh by interpolating at each element centroid.
 
-\subsection{Interpolation Logic}
-The class \texttt{ElementTensionInterpolator} manages the transfer:
+\subsection{Input Loading}
 
-\begin{itemize}
-    \item \textbf{Linear Interpolation (Primary):} 
-    Uses \texttt{scipy.interpolate.LinearNDInterpolator} to estimate stress values at element centroids based on the surrounding source points. This method respects the gradients of the field.
-    
-    \item \textbf{Nearest Neighbor (Fallback):} 
-    For elements falling outside the convex hull of the source data (edges/corners), the script falls back to \texttt{NearestNDInterpolator} to avoid NaN values, ensuring robust mapping for the entire mesh.
-\end{itemize}
+\texttt{ElementTensionInterpolator} reads both the target mesh and the source stress field from \texttt{output\_dir}. File detection is automatic: each load method first looks for a standard filename (\texttt{elements\_data.txt}, \texttt{residual\_stress.txt}) and, if not found, scans the directory for a suitable candidate.
+
+\texttt{load\_tension\_field} supports two input formats detected automatically from the file header:
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lll}
+\hline
+\textbf{Format} & \textbf{Detected by} & \textbf{Columns} \\
+\hline
+Abaqus & header contains \texttt{INITIAL CONDITIONS} & ID, S11, S22, S33, S12, S13, S23 \\
+Cylindrical & header contains \texttt{Sigma\_r} & ID, X, Y, Z, R, $\theta$, $\sigma_r$, $\sigma_\theta$, $\sigma_z$, $\tau_{rt}$, $\tau_{rz}$, $\tau_{\theta z}$ \\
+\hline
+\end{tabular}
+\caption{Source stress file formats accepted by \texttt{load\_tension\_field}.}
+\end{table}
+
+For cylindrical format, the components are converted to Cartesian in-place before interpolation:
+\begin{align*}
+    S_{11} &= \sigma_r \cos^2\theta + \sigma_\theta \sin^2\theta \\
+    S_{12} &= (\sigma_r - \sigma_\theta)\sin\theta\cos\theta
+\end{align*}
+
+\subsection{Interpolation Strategy}
+
+For each of the six stress components independently:
+\begin{enumerate}
+    \item \textbf{Linear (primary):} \texttt{LinearNDInterpolator} over the source point cloud in 3D.
+    \item \textbf{Nearest-neighbor (fallback for NaN):} \texttt{NearestNDInterpolator} fills elements outside the convex hull of the source data.
+    \item \textbf{Mean (last resort):} if both interpolators fail, the component is filled with the mean value across all source points.
+\end{enumerate}
+
+If fewer than 4 source points are available (minimum for 3D linear interpolation), all elements receive the mean stress vector directly.
 
 \subsection{Output}
-The result is a formatted text file containing the interpolated stress tensor for every element, ready to be imported into Abaqus as an Initial Condition (Predefined Field).
+
+\texttt{generate\_interpolated\_tension\_file} writes \texttt{interpolated\_element\_stresses.txt} formatted as an Abaqus initial condition:
+\begin{lstlisting}
+*INITIAL CONDITIONS, TYPE=STRESS
+element_id, S11, S22, S33, S12, S13, S23
+...
+\end{lstlisting}

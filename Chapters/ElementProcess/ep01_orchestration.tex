@@ -1,31 +1,43 @@
 \section{Workflow Orchestration}
 \label{sec:ep_orchestration}
 
-\textbf{Script:} \texttt{Elements\_main.py}
+\textbf{Script:} \texttt{elements\_main.py}
 
-This script primarily orchestrates the \textbf{Analytical Workflow}, serving as a pipeline for generating and mapping theoretical stress fields onto a mesh. For Data-Driven workflows (Real Data), the process typically bypasses the synthetic generation steps in favor of direct HDF5 mapping.
+\textbf{Module path:} \texttt{src/element\_process/}
 
-\subsection{Analytical Pipeline (3 Scripts)}
-When running in analytical mode, the pipeline executes three discrete stages:
+The module was restructured and all scripts renamed to the lowercase-underscore convention:
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{ll}
+\hline
+\textbf{Old name} & \textbf{New name} \\
+\hline
+\texttt{Elements\_main.py}   & \texttt{elements\_main.py} \\
+\texttt{s1\_Ele\_Extractor.py} & \texttt{extractor.py} \\
+\texttt{s2\_RE\_Field.py}      & \texttt{field\_analitic.py} \\
+\texttt{s3\_RE\_Interpolator.py} & \texttt{interpolator.py} \\
+\texttt{s2\_RE\_ExnCon.py}    & \texttt{stress\_mapping.py} \\
+\texttt{s2\_RE\_ExnCon2.py}   & \texttt{stress\_mapping\_2.py} \\
+--- (new)                    & \texttt{elements\_plot.py} \\
+\hline
+\end{tabular}
+\caption{\texttt{element\_process} module file renaming.}
+\end{table}
+
+\subsection{Analytical Pipeline}
+Used for validation or when experimental data is unavailable. Runs three stages in sequence:
 
 \begin{enumerate}
-    \item \textbf{Extraction (s1):} 
-    Parses geometry and topology from the \texttt{.inp} file.
-    
-    \item \textbf{Synthetic Generation (s2):} 
-    Calculates a theoretical stress distribution (e.g., cylindrical) based on the mesh bounding box. Executed via \texttt{s2\_RE\_Field.py}.
-    
-    \item \textbf{Interpolation (s3):} 
-    Maps the synthetic cloud points onto the element centroids. Executed via \texttt{ElementTensionInterpolator} in \texttt{s3\_RE\_Interpolator.py}.
+    \item \textbf{Extraction:} Parses geometry and topology from the \texttt{.inp} file via \texttt{extractor.py}.
+    \item \textbf{Synthetic Generation:} Generates a theoretical cylindrical stress field from the mesh bounding box via \texttt{field\_analitic.py}.
+    \item \textbf{Interpolation:} Maps the synthetic point cloud onto element centroids via \texttt{interpolator.py}.
 \end{enumerate}
 
-\subsection{Data-Driven Pipeline (2 Scripts)}
-For real simulation data (e.g., Contour Method or RSA), the workflow is condensed. Since the source data (HDF5) already contains spatial information, the generation and interpolation steps are merged:
+\subsection{Data-Driven Pipeline}
+For real simulation data (Contour Method or RSA), the generation step is replaced by direct HDF5 mapping:
 
 \begin{enumerate}
-    \item \textbf{Extraction (s1):} 
-    Same as above; prepares the target mesh centroids.
-    
-    \item \textbf{Direct Mapping (s2):} 
-    Uses \texttt{s2\_RE\_ExnCon.py} to read the HDF5 source and map stresses directly to the target centroids using KDTree algorithms, skipping the intermediate synthetic generation.
+    \item \textbf{Extraction:} Same as above; prepares target mesh centroids.
+    \item \textbf{Direct Mapping:} Reads the HDF5 source (\texttt{S\_batch.h5}) and maps stresses to element centroids using KDTree via \texttt{stress\_mapping.py} or \texttt{stress\_mapping\_2.py}.
 \end{enumerate}

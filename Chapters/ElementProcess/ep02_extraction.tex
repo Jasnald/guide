@@ -1,33 +1,39 @@
 \section{Stage 1: Element Extraction}
 \label{sec:ep_extraction}
 
-\textbf{Script:} \texttt{s1\_Ele\_Extractor.py}
+\textbf{Script:} \texttt{extractor.py}
 
-The first stage of the pipeline converts the unstructured text data from Abaqus input files into structured tabular data (CSV/Pandas DataFrames) suitable for mathematical processing.
+Parses an Abaqus \texttt{.inp} file and computes element centroids, producing two output files consumed by all downstream stages.
 
-\subsection{Input Parsing Logic}
-The script manually parses the \texttt{.inp} text format to identify geometric definitions:
+\subsection{Parsing Functions}
 
 \begin{itemize}
-    \item \textbf{Element Parsing:} 
-    The function \texttt{extract\_elements\_from\_inp} scans for the \texttt{*ELEMENT} keyword. It extracts the Element ID, the Element Type (e.g., C3D8R), and the list of connected Node IDs that define the element's topology.
-    
-    \item \textbf{Coordinate Extraction:} 
-    A companion function (referenced as \texttt{extract\_node\_coordinates}) retrieves the spatial $(X, Y, Z)$ coordinates for every node defined under the \texttt{*NODE} keyword.
+    \item \texttt{extract\_elements\_from\_inp(input\_file)} --- scans for the \texttt{*ELEMENT} keyword and returns three arrays: element IDs, element types (e.g.\ \texttt{C3D8R}), and the list of connected node IDs per element.
+    \item \texttt{extract\_node\_coordinates(input\_file)} --- scans for the \texttt{*NODE} keyword and returns a \texttt{dict} mapping each node ID to its $(x, y, z)$ coordinates, used for centroid calculation.
+    \item \texttt{get\_element\_coordinates(connected\_nodes, node\_coords)} --- averages the coordinates of connected nodes to produce the centroid $(X_{center}, Y_{center}, Z_{center})$ for each element:
 \end{itemize}
 
-\subsection{Geometry Calculation}
-To facilitate field interpolation, the script calculates the **centroid** of each element.
 \begin{equation}
     C_{elem} = \frac{1}{N} \sum_{i=1}^{N} P_{node\_i}
 \end{equation}
-Where $P_{node\_i}$ are the coordinates of the nodes connected to the element. This reduces the element to a single point in space $(X_{center}, Y_{center}, Z_{center})$.
 
-\subsection{Output}
-The processed data is saved to the output directory as a tab-separated file containing:
-\begin{itemize}
-    \item Element ID
-    \item Element Type
-    \item Centroid Coordinates ($X, Y, Z$)
-\end{itemize}
-This file serves as the geometric basis for the subsequent stress field generation.
+Nodes missing from \texttt{node\_coords} are skipped; elements with no valid nodes receive \texttt{NaN} centroids.
+
+\subsection{Output Files}
+
+\texttt{save\_element\_info} writes two files to \texttt{output\_dir}:
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lll}
+\hline
+\textbf{File} & \textbf{Format} & \textbf{Contents} \\
+\hline
+\texttt{elements\_data.txt} & Tab-separated & Element ID, Type, $X/Y/Z$ centroid per row. \\
+\texttt{element\_info.txt}  & Plain text     & Total element count, coordinate ranges, type distribution. \\
+\hline
+\end{tabular}
+\caption{Output files from \texttt{extractor.py}.}
+\end{table}
+
+\texttt{elements\_data.txt} is the primary input for \texttt{interpolator.py} and \texttt{stress\_mapping.py}. \texttt{element\_info.txt} is used by \texttt{field\_analitic.py} to read the mesh bounding box for synthetic stress generation.
