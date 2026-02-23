@@ -1,0 +1,149 @@
+\chapter{Experimental Data Processing}
+\label{ch:exp_process}
+
+\textbf{Module Path:} \texttt{src/exp\_process/}
+
+This module implements the full preprocessing and fitting pipeline for raw experimental surface and curve measurements. It replaces both the previous \texttt{Exp\_Data} and \texttt{Preprocess} modules with a more structured, object-oriented architecture designed to be extended for new experiment types with minimal changes to existing code.
+
+Previously, \texttt{Exp\_Data} handled physical dimensions and sample configuration while \texttt{Preprocess} ran separate per-experiment scripts for cleaning, fitting, and visualization. These responsibilities are now unified under \texttt{exp\_process}, with the processing logic reorganized into reusable, experiment-agnostic layers. Sample dimensions and simulation configuration remain in separate modules outside \texttt{exp\_process} (see \texttt{data/input/}).
+
+The module handles two distinct experiment types, each with their own geometry and data format:
+
+\begin{itemize}
+    \item \textbf{Experiment 1 (T-Shape):} 3D surface measurements from a T-shaped specimen, acquired in multiple passes (\texttt{bottom} and \texttt{wall} regions) across two measurement sides. Multiple measurements per side are averaged during parsing.
+    \item \textbf{Experiment 2 (Rectangular Profile):} 1D curve measurements from a rectangular specimen, acquired in two opposing directions (Left/Right). The L/R pair is averaged and merged into a single profile during parsing, before any further processing.
+\end{itemize}
+
+\section{Module Architecture}
+
+The module is organized into five layers, each with a well-defined responsibility. Data flows top-to-bottom through these layers, with configuration injected at the pipeline level.
+
+\begin{enumerate}
+    \item \textbf{Parsers (\texttt{parsers/}):} Read raw \texttt{.txt} files from disk and return structured NumPy arrays. One parser class per experiment type.
+    \item \textbf{Core (\texttt{core/}):} Stateless mathematical and geometric utilities — cleaning, fitting, meshing, transforming, segmenting, and reconstructing. These classes have no knowledge of file paths or experiment types.
+    \item \textbf{Procedures (\texttt{procedures/}):} Orchestrate the core utilities into named pipeline stages: \texttt{preprocess}, \texttt{fitting}, \texttt{comparison}, and \texttt{validation}. Each procedure reads from and writes to disk as JSON.
+    \item \textbf{Pipeline (\texttt{pipeline/}):} High-level entry points that chain procedures together. A user runs the pipeline; the pipeline calls the procedures in order.
+    \item \textbf{Utils \& GUI (\texttt{utils/}, \texttt{gui/}):} JSON I/O helpers and the interactive point cloud viewer used in the validation step.
+\end{enumerate}
+
+\begin{figure}[ht]
+    \centering
+    \begin{verbatim}
+    [Raw .txt files]
+         |
+    [ Parsers ]  <-- reading + averaging (Exp1: multi-pass; Exp2: L/R merge)
+         |
+    [ Procedures: Preprocess ]  <-- IQR cleaning, step segmentation, JSON output
+         |
+    [ GUI: Validation ]  <-- manual point deletion (blocking)
+         |
+    [ Procedures: Fitting ]  <-- 1D/2D polynomial fitting, JSON output
+         |
+    [ Procedures: Comparison ]  <-- subtraction, averaging, rebuild output
+    \end{verbatim}
+    \caption{Data flow through the \texttt{exp\_process} pipeline.}
+    \label{fig:exp_process_flow}
+\end{figure}
+
+\section{Dependencies}
+
+The module depends on standard scientific Python libraries. All are listed in \texttt{src/exp\_process/deps\_core.py} and \texttt{deps\_gui.py}:
+
+\begin{itemize}
+    \item \textbf{Core:} \texttt{numpy}, \texttt{shapely}, \texttt{scipy} (implicit via \texttt{numpy.linalg})
+    \item \textbf{GUI:} \texttt{matplotlib} (TkAgg backend), \texttt{tkinter}
+\end{itemize}
+
+\section{How to Run}
+\label{sec:exp_process_run}
+
+The \ texttt{scripts/} directory at the project root contains ready-made run scripts for each experiment. These handle the path setup, sample dimension reading, and pipeline configuration automatically — they are the intended entry point for day-to-day use.
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{ll}
+\hline
+\textbf{Script} & \textbf{Purpose} \\
+\hline
+\texttt{scripts/e1\_process\_run.py} & Full preprocessing pipeline for Experiment 1 (T-Shape, 3D surface). \\
+\texttt{scripts/e2\_process\_run.py} & Full preprocessing pipeline for Experiment 2 (Rectangular, 1D curve). \\
+\texttt{scripts/e1\_simulation\_run.py} & Simulation run for Experiment 1 (see simulation chapters). \\
+\texttt{scripts/e2\_simulation\_run.py} & Simulation run for Experiment 2 (see simulation chapters). \\
+\texttt{scripts/setup\_geometry.py} & Geometry preprocessing shared by both experiments. \\
+\hline
+\end{tabular}
+\caption{Scripts in \texttt{scripts/}.}
+\end{table}
+
+To run the processing pipeline for either experiment, execute the corresponding script from the project root:
+
+\begin{lstlisting}[language=bash]
+# From the project root:
+python scripts/e1_process_run.py   # Experiment 1
+python scripts/e2_process_run.py   # Experiment 2
+\end{lstlisting}
+
+Each script performs the following automatically:
+\begin{enumerate}
+    \item Adds \texttt{src/} to \texttt{sys.path} so \texttt{exp\_process} is importable without installation.
+    \item Reads sample dimensions from \texttt{data/input/exp\textit{N}/} via \texttt{ExpProcessor.process()} and derives any required geometric transformation rules (e.g.\ mirror axis for Exp1 Side2).
+    \item Assembles the full pipeline config (\ texttt{Exp1PipelineConfig} or \texttt{Exp2PipelineConfig}) with the correct input and output directories.
+    \item Calls \texttt{.run()} on the pipeline, which executes preprocessing, opens the validation GUI, runs fitting, and (Exp1 only) computes the averaged reference surface.
+\end{enumerate}
+
+Output is written to:
+\begin{itemize}
+    \item \textbf{Exp1:} \texttt{data/output/exp1/surface\_data/}
+    \item \textbf{Exp2:} \texttt{data/output/exp2/curve\_data/}
+\end{itemize}
+
+\textbf{What to change before running:}
+\begin{itemize}
+    \item \textbf{New sample file:} update the \texttt{sample\_path} variable at the top of the script to point to the correct sample definition file in \texttt{data/input/exp\textit{N}/}.
+    \item \textbf{Fitting parameters:} adjust \texttt{high\_degree}, \texttt{ridge\_alpha}, or \texttt{fix\_rules} directly in the config block. These are clearly marked in the script with section comments.
+    \item \textbf{Output directory:} change \texttt{OUTPUT\_DIR} at the top of the script; all sub-directories are derived from it automatically.
+\end{itemize}
+
+
+\section{File Structure}
+
+\begin{verbatim}
+src/exp_process/
+    deps_core.py          # core imports
+    deps_gui.py           # GUI imports
+    parsers/
+        _base.py          # AbstractParser
+        t_shape.py        # Experiment 1 parser
+        rec_shape.py      # Experiment 2 parser
+    core/
+        cleaner.py        # IQR outlier removal
+        fitter.py         # 1D and 2D polynomial fitting
+        mesher.py         # grid generation
+        operations.py     # model arithmetic (subtract, average)
+        rebuilder.py      # surface/curve reconstruction
+        segmenter.py      # step detection
+        transformer.py    # geometric corrections
+    procedures/
+        preprocess.py     # Stage 1: clean and segment
+        fitting.py        # Stage 3: polynomial fitting
+        comparison.py     # Stage 4: model averaging
+        validation.py     # Stage 2: GUI launcher
+    pipeline/
+        base.py           # BasePipeline (abstract)
+        surface.py        # Experiment 1 full pipeline
+        curve.py          # Experiment 2 full pipeline
+    gui/
+        viewer.py         # PointCloudViewer
+    utils/
+        io.py             # JSON save/load utilities
+\end{verbatim}
+
+\section{Chapter Organization}
+
+The following sections document each layer in detail, including configuration parameters, extension points, and common modification scenarios.
+
+\input{Chapters/ExpData/parsers}
+\input{Chapters/ExpData/core}
+\input{Chapters/ExpData/procedures}
+\input{Chapters/ExpData/pipeline}
+\input{Chapters/ExpData/utils_gui}

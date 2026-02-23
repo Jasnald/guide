@@ -21,7 +21,7 @@ To address these challenges, this framework is architected into two primary doma
 \subsection{Part I: Data Preparation \& Conversion}
 This domain handles the "Digital Twin" aspect of the samples:
 \begin{itemize}
-    \item \textbf{Preprocessing:} Algorithms to clean point clouds, align measurement axes, and fit polynomial surfaces to experimental data (Chapter \ref{part:prep}).
+    \item \textbf{Preprocessing:} Algorithms to clean point clouds, align measurement axes, and fit polynomial surfaces to experimental data (Chapter \ref{ch:exp_process}).
     \item \textbf{Data Standardization:} A unified pipeline that converts proprietary Abaqus outputs (ODB) into open scientific formats (HDF5/XDMF) for streamlined post-processing (Chapter \ref{ch:conversor}).
     \item \textbf{Experimental Database:} A central repository (\texttt{Exp\_Data}) that stores the statistical mean dimensions of physical samples, ensuring simulations match the manufactured reality (Chapter \ref{ch:exp_process}).
 \end{itemize}
@@ -31,7 +31,7 @@ This domain acts as the computational engine:
 \begin{itemize}
     \item \textbf{Orchestration:} A high-level Python pipeline that manages the entire lifecycle of a simulation batch—from directory creation to job submission (Chapter \ref{ch:pipeline_core}).
     \item \textbf{Abaqus Scripting Interface (ASI):} A modular, object-oriented framework that runs inside the Abaqus kernel to procedurally generate geometries, meshes, and analysis steps (Chapter \ref{ch:abaqus_modules}).
-    \item \textbf{Hybrid Workflows:} Specialized solvers for the \textbf{Contour Method} (calculating stress from deformation) and \textbf{Residual Stress Analysis} (simulating redistribution after material removal), including the mapping of stress fields between dissimilar meshes (Chapter \ref{ch:rs_workflow}).
+    \item \textbf{Hybrid Workflows:} Specialized solvers for the \textbf{Contour Method} (calculating stress from deformation) and \textbf{Residual Stress Analysis} (simulating redistribution after material removal), including the mapping of stress fields between dissimilar meshes (Chapter \ref{ch:ch_rs_workflow}).
 \end{itemize}
 
 \section{Scope of this Manual}
