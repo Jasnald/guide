@@ -1,21 +1,71 @@
 \section{Stage 3: XDMF/HDF5 Compilation}
 \label{sec:conv_compilation}
 
-\textbf{Script:} \texttt{Npy\_2\_Xdmf.py}
+\textbf{Script:} \texttt{npy\_hdf\_conv.py} \quad (runs in \textbf{Python 3})
 
-The final stage takes the fragmented `.npy` files generated in Stage 2 and compiles them into a single, high-performance hierarchical file format suitable for ParaView and the viewer made by the autor.
+This stage has no Abaqus dependency and runs in a standard Python 3 environment. It reads the \texttt{.npy} directories produced by Stage 2 and consolidates them into a single HDF5 file plus an XDMF wrapper for ParaView.
 
-\subsection{HDF5 Hierarchical Structure}
-The \texttt{Npy2XdmfConverter} builds a binary HDF5 file (\texttt{S\_batch.h5}) organized by model:
+\subsection{NPY2XDMFParameters --- New Separate Config Class}
+
+A new \texttt{NPY2XDMFParameters} class was added (separate from \texttt{ODB2NPYParameters} in Stage 1). It reads \texttt{data/config.json} and returns the NPY root directory, the output directory, and the options dict for \texttt{NpyBatchToXdmfConverter}. The split avoids importing any Abaqus-side code into the Python 3 environment.
+
+\subsection{Memory-Mapped NPY Loading}
+
+All \texttt{.npy} files are now loaded via \texttt{np.load(path, mmap\_mode='r')} (internal method \texttt{\_np\_load}). Memory mapping means the full array is not loaded into RAM upfront; the OS pages in only the accessed regions. For large mesh models this is the primary reason Stage 3 no longer runs out of memory when processing multiple simulations.
+
+\subsection{HDF5 Structure and Precision}
+
+The HDF5 hierarchy is unchanged. Precision is now explicit and documented:
+
+\begin{verbatim}
+S_batch.h5
+  ModelName/
+    geometry/
+      coordinates      [n_nodes, 3]              float64
+      connectivity     [n_elem, nodes_per_elem]   int32
+    topology/
+      element_types    [n_elements]               uint8
+      offsets          [n_elements]               int32
+    time_series/
+      step_1_.../
+        frame_001/
+          displacement      [n_nodes, 3]    float32
+          stress_tensor     [n_nodes, 9]    float32
+          von_mises         [n_nodes]       float32
+          max_principal     [n_nodes]       float32
+          min_principal     [n_nodes]       float32
+\end{verbatim}
+
 \begin{itemize}
-    \item \texttt{/ModelName/geometry/}: Stores the \texttt{coordinates} and \texttt{connectivity} arrays.
-    \item \texttt{/ModelName/topology/}: Stores \texttt{element\_types} and \texttt{offsets}.
-    \item \texttt{/ModelName/time\_series/}: A nested structure storing field data (Displacement, Stress) organized by Step and Frame.
+    \item \textbf{Coordinates} are written as \texttt{float64} (8 bytes) to preserve mesh geometry accuracy.
+    \item \textbf{All field data} is written as \texttt{float32} (4 bytes), halving storage size with negligible loss for visualisation.
 \end{itemize}
 
-\subsection{XDMF Wrapper Generation}
-To make the HDF5 data readable, the script generates an XML wrapper (\texttt{S\_batch.xdmf}).
+The \texttt{nodes\_per\_elem} count is inferred from the connectivity array dimensions (\texttt{conn.size // element\_types.size}) rather than reading a separate metadata file.
+
+\subsection{XDMF Attribute Type Detection}
+
+The XDMF writer now auto-detects the attribute type of each dataset, instead of hard-coding \texttt{Scalar}:
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lll}
+\hline
+\textbf{Array shape} & \textbf{XDMF AttributeType} & \textbf{Example} \\
+\hline
+\texttt{[N, 3]} & \texttt{Vector}  & displacement \\
+\texttt{[N, 9]} & \texttt{Tensor6} & stress\_tensor \\
+\texttt{[N]}    & \texttt{Scalar}  & von\_mises, principal stresses \\
+\hline
+\end{tabular}
+\caption{XDMF attribute type auto-detection.}
+\end{table}
+
+\texttt{Tensor6} is the correct type for a symmetric 9-component stress tensor in ParaView. Using \texttt{Scalar} for this field (as the old code did) prevented ParaView from computing derived quantities like principal stress on its own.
+
+\textbf{Where to change:}
 \begin{itemize}
-    \item \textbf{Temporal Grid:} It defines a `GridType="Collection"` with `CollectionType="Temporal"`. This links specific simulation times to the static geometry and dynamic field datasets in the HDF5 file.
-    \item \textbf{Data Precision:} It handles precision types explicitly, defining Geometry as \texttt{Float} (Double precision) and Topology as \texttt{Int}, ensuring correct interpretation by visualization software.
+    \item \textbf{Disable gzip compression:} set \texttt{"hdf5\_compression": false} in \texttt{config.json} under \texttt{conversion\_params/NPY2XDMF}. Useful when write speed matters more than file size.
+    \item \textbf{Change output filename:} \texttt{"S\_batch.h5"} is passed as \texttt{h5\_filename} in \texttt{NpyBatchToXdmfConverter.convert\_all()}. Change it there.
+    \item \textbf{Add a new field to XDMF:} no change needed here --- the writer iterates all datasets found in each \texttt{frame\_XXX} group automatically. Ensure Stage 2 saves the new \texttt{.npy} file in the correct frame directory and the attribute type table above will handle it.
 \end{itemize}

@@ -1,21 +1,54 @@
 \section{Stage 1: Configuration and Orchestration}
 \label{sec:conv_orchestration}
 
-\textbf{Scripts:} \texttt{Odb\_Npz\_Parameters.py}, \texttt{ODB\_2\_XDMF.py}
+\textbf{Files:} \texttt{odb\_npz\_para.py}, \texttt{deps.py}
 
-The conversion process is initiated by the orchestration layer, which manages configuration loading, directory discovery, and batch processing logic.
+\subsection{Module Restructuring}
 
-\subsection{Parameter Management}
-The class \texttt{ODB2NPYParameters} acts as the bridge between the project's global \texttt{config.json} and the conversion scripts.
+The conversor module was reorganised and all scripts renamed to follow a consistent lowercase-underscore convention:
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{ll}
+\hline
+\textbf{Old name} & \textbf{New name} \\
+\hline
+\texttt{Odb\_Npz\_Parameters.py} & \texttt{odb\_npz\_para.py} \\
+\texttt{Odb\_Npz\_Converter.py}  & \texttt{odb\_npz\_conv.py} \\
+\texttt{Npy\_2\_Xdmf.py}         & \texttt{npy\_hdf\_conv.py} \\
+--- (new)                        & \texttt{deps.py} \\
+\hline
+\end{tabular}
+\caption{Conversor module file renaming.}
+\end{table}
+
+\subsection{deps.py --- Centralised Imports}
+
+All imports for the conversor package are now consolidated in \texttt{deps.py}. This solves two problems from the old code: duplicate import blocks across files, and IDE false-positive errors from Abaqus-only symbols.
+
+The file handles Python 2/3 compatibility explicitly:
 \begin{itemize}
-    \item \textbf{Config Loading:} It reads the global configuration to determine the root directories for specific simulation methods (e.g., "Contour Method").
-    \item \textbf{Output Paths:} It automatically defines the output structure, creating a \texttt{npy\_files} directory within the simulation folder to store intermediate results.
+    \item \texttt{pathlib.Path} is imported with a \texttt{try/except} --- if the import fails (Python 2.7 Abaqus environment), \texttt{Path} is set to \texttt{None} so the rest of the code still runs.
+    \item \texttt{scipy} and \texttt{h5py} are guarded the same way --- their absence does not crash the Abaqus side, which does not need them.
+    \item NumPy warnings about files created on Python 2 are suppressed globally here, not in each consumer module.
 \end{itemize}
 
-\subsection{Batch Processing}
-The \texttt{OdbBatchConverter} class handles the iteration over multiple simulation files:
+\textbf{Where to change:} add any new third-party dependency import here, with the same \texttt{try/except} guard if it is Python-3-only.
+
+\subsection{ODB2NPYParameters}
+
+\texttt{ODB2NPYParameters} loads \texttt{data/config.json} and returns the ODB simulation directory, the NPY output directory, and the conversion parameters dict consumed by \texttt{OdbBatchConverter}. Responsibility is unchanged from the previous version.
+
+A diagnostic block was added to \texttt{run()}: it logs Python version, current directory, root directory, and encoding before returning. This is useful when the script runs from Abaqus where the environment can differ from the development machine.
+
+\subsection{OdbBatchConverter}
+
+Finds all \texttt{.odb} files in \texttt{Simulation\_dir}, inspects their structure (steps, instances, frame counts), and calls \texttt{OdbToNPYConverter} for each one. One subdirectory per ODB file is created inside \texttt{NPY\_Dir}.
+
+A new helper \texttt{\_convert\_frame\_params(begin\_frame, end\_frame)} was added to convert legacy \texttt{-1} sentinel values to the format expected by the new converter, keeping backward compatibility with existing configs.
+
+\textbf{Where to change:}
 \begin{itemize}
-    \item \textbf{Discovery:} It scans the target directory for all files ending in \texttt{.odb}.
-    \item \textbf{Structure Inspection:} Before conversion, it can inspect the ODB to list available Steps and Instances (nodes/elements counts), helping to validate the file integrity.
-    \item \textbf{Unicode Handling:} It includes a \texttt{safe\_str\_convert} utility to handle potential encoding issues when passing file paths between modern Python environments and the older Abaqus Python kernel.
+    \item \textbf{Process only specific ODB files:} modify \texttt{find\_odb\_files} or add a name filter before the loop in \texttt{convert\_batch}.
+    \item \textbf{Change mesh type:} set \texttt{MeshType} in \texttt{config.json} under \texttt{conversion\_params/Contour\_Method} --- \texttt{"12"} for Hexahedron, \texttt{"10"} for Tetrahedron.
 \end{itemize}

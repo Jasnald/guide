@@ -1,21 +1,72 @@
 \section{Stage 2: ODB Data Extraction (Abaqus API)}
 \label{sec:conv_extraction}
 
-\textbf{Script:} \texttt{Odb\_Npz\_Converter.py}
+\textbf{Script:} \texttt{odb\_npz\_conv.py} \quad (runs in \textbf{Python 2.7} inside the Abaqus environment)
 
-This script runs within the Abaqus Python 2.7 environment. Its primary function is to deconstruct the finite element model into raw NumPy arrays (`.npy`), isolating the proprietary dependency from the rest of the pipeline.
+This script must be executed through the Abaqus Python kernel; it cannot run in a standard Python 3 environment because it imports Abaqus-internal symbols (\texttt{openOdb}, \texttt{ELEMENT\_NODAL}, etc.). Its responsibility is to extract mesh and field data from an ODB and save individual \texttt{.npy} files to disk.
 
-\subsection{Geometry Extraction}
-The converter aggregates mesh data from specified instances into a global coordinate system.
+\subsection{New Constructor Parameters}
+
+Two parameters were added to \texttt{OdbToNPYConverter} that did not exist before:
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lll}
+\hline
+\textbf{Parameter} & \textbf{Default} & \textbf{Description} \\
+\hline
+\texttt{begin\_frame} & \texttt{'-1'} & First frame to extract. \texttt{-1} = first frame of each step. \\
+\texttt{end\_frame}   & \texttt{'-1'} & Last frame to extract. \texttt{-1} = last frame of each step. \\
+\hline
+\end{tabular}
+\caption{New parameters in \texttt{OdbToNPYConverter}.}
+\end{table}
+
+This allows extracting only a window of frames instead of the full time history --- useful when only the final loading state is needed. The method \texttt{\_get\_frame\_range} translates the \texttt{-1} sentinel to the actual last index and clamps both values to the available range.
+
+\subsection{Geometry Extraction and Immediate Memory Release}
+
+Node mapping works as before: Abaqus labels are translated to sequential zero-based indices via a per-instance \texttt{node\_mapping} dict. The key change is in memory management.
+
+Geometry arrays (\texttt{coordinates}, \texttt{connectivity}, \texttt{element\_types}, \texttt{offsets}) are now saved to disk immediately after extraction via \texttt{\_save\_geometry\_topology}, and then explicitly deleted from \texttt{geom\_data} with a \texttt{gc.collect()} call. This frees memory before the (much larger) temporal data loop begins, which is critical for high-element-count models.
+
+\subsection{Dual-Strategy Field Extraction}
+
+Both displacement and stress extraction now use a fallback chain of position strategies rather than a single fixed position. This was the source of silent empty arrays in the old code when Abaqus stored results at a different integration level.
+
+\textbf{Displacement} --- tries in order:
+\begin{enumerate}
+    \item \texttt{NODAL}
+    \item \texttt{ELEMENT\_NODAL}
+    \item \texttt{INTEGRATION\_POINT}
+    \item Default (no position filter)
+\end{enumerate}
+
+\textbf{Stress} --- tries in order:
+\begin{enumerate}
+    \item \texttt{ELEMENT\_NODAL} (extrapolated from integration points to nodes --- preferred)
+    \item \texttt{NODAL}
+    \item Default via \texttt{bulkDataBlocks} (fastest, block-level access)
+\end{enumerate}
+
+For each position, the extractor first attempts \texttt{bulkDataBlocks} (faster), then falls back to iterating \texttt{field.values} individually. A warning is printed if no strategy produces data.
+
+\subsection{Stress Components Saved}
+
+The refactored extractor now saves all nine tensor components plus the Abaqus-computed invariants:
+
 \begin{itemize}
-    \item \textbf{Node Mapping:} Abaqus node labels are not necessarily sequential or zero-indexed. The script creates a mapping dictionary \texttt{node\_mapping} to translate arbitrary Abaqus labels (e.g., Node 105) into sequential array indices (e.g., Index 0) for the output arrays.
-    \item \textbf{Topology:} It extracts element connectivity and offsets, converting them into the flat array format required by visualization standards.
+    \item \texttt{stress\_tensor.npy} --- shape \texttt{[n\_nodes, 9]}, full symmetric tensor (S11, S22, S33, S12, S13, S23 mapped to all 9 positions)
+    \item \texttt{von\_mises.npy} --- shape \texttt{[n\_nodes]}
+    \item \texttt{max\_principal.npy} --- shape \texttt{[n\_nodes]}
+    \item \texttt{min\_principal.npy} --- shape \texttt{[n\_nodes]}
 \end{itemize}
 
-\subsection{Field Output Processing}
-The method \texttt{\_process\_temporal\_data\_optimized} iterates through simulation steps and frames to extract physical results.
+The invariants are read directly from Abaqus (\texttt{v.mises}, \texttt{v.maxPrincipal}, \texttt{v.minPrincipal}) rather than recomputed. This ensures consistency with the Abaqus Viewer. After averaging across all contributing values per node, the \texttt{stress\_threshold} filter (default $10^{-6}$) zeros out all fields at nodes below the threshold to suppress numerical noise.
+
+\textbf{Where to change:}
 \begin{itemize}
-    \item \textbf{Optimization:} To manage memory usage for large models, data is processed in "chunks" and saved immediately to disk, rather than holding the entire history in RAM.
-    \item \textbf{Invariants:} The script leverages pre-calculated Abaqus invariants (Mises, Max Principal) when available in the \texttt{bulkDataBlocks}. This avoids manual recalculation and ensures consistency with Abaqus viewer results.
-    \item \textbf{Thresholding:} A \texttt{stress\_threshold} (default $10^{-6}$) is applied to filter out numerical noise. Values below this threshold are set to zero.
+    \item \textbf{Extract only the last frame:} leave both \texttt{begin\_frame} and \texttt{end\_frame} at \texttt{'-1'} (default behaviour).
+    \item \textbf{Suppress noisy near-zero stress regions:} raise \texttt{stress\_threshold} (e.g.\ \texttt{1e-3}).
+    \item \textbf{Add a new field output (e.g.\ strain):} follow the same dual-strategy pattern in \texttt{\_process\_and\_save\_frame} --- allocate a sum array, cache the field, accumulate and average across contributing values, apply the threshold, then save with \texttt{np.save}.
 \end{itemize}
