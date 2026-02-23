@@ -18,6 +18,17 @@ To decouple the Python logic from the specific formatting of Abaqus input files,
 This class encapsulates all parameters required to launch an Abaqus solver job via the command line. It includes:
 \begin{itemize}
     \item \textbf{Resource Allocation:} Number of CPUs (\texttt{n\_cpus}) and memory percentage (\texttt{memory}).
-    \item \textbf{Environment Settings:} Path to the Abaqus executable and scratch directory usage.
+    \item \textbf{Environment Settings:} Path to the Abaqus executable (\texttt{abaqus\_cmd}) and scratch directory usage (\texttt{use\_scratch}).
     \item \textbf{Job Control:} Timeout limits (default 30 hours) to prevent stalled processes from hanging the pipeline indefinitely.
+    \item \textbf{Output Mode:} \texttt{silent\_mode} — if \texttt{True}, captures stdout/stderr to a log file; if \texttt{False}, streams output live. \texttt{auto\_cleanup} — if \texttt{True}, automatically removes the scratch directory after a successful run.
+\end{itemize}
+
+\textbf{Class:} \texttt{AbaqusScriptConfig}
+
+A companion dataclass for running standalone Abaqus Python scripts (not full solver jobs). Used by \texttt{AbaqusScriptRunner}:
+\begin{itemize}
+    \item \texttt{script\_name} — path to the \texttt{.py} script to execute.
+    \item \texttt{working\_dir} — working directory; UNC paths (\texttt{\textbackslash\textbackslash server\textbackslash share}) are handled transparently via \texttt{pushd}/\texttt{popd}.
+    \item \texttt{python\_cmd} — Python interpreter or Abaqus Python wrapper command.
+    \item \texttt{env} — optional dictionary of environment variables passed to the subprocess.
 \end{itemize}

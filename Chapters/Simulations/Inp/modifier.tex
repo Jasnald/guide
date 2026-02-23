@@ -32,7 +32,13 @@ Modifying an INP file requires placing commands in specific sections (e.g., Asse
     Locates the \texttt{*End Assembly} marker to inject element sets inside the assembly definition but outside of instance definitions, ensuring global visibility.
     
     \item \textbf{\texttt{replace\_material\_block}:} 
-    A robust method to update material properties. It finds a material definition by name and replaces its entire block (Elastic, Plastic, Density) while preserving the rest of the file structure. It detects the end of a material block by looking for "Block Breaker" keywords like \texttt{*Step} or \texttt{*Boundary}.
+    Finds a material definition by name and replaces its entire sub-block while preserving the rest of the file. End-of-block detection is done by scanning for a predefined list of "block breaker" keywords (\texttt{*Step}, \texttt{*Boundary}, \texttt{*Node}, \texttt{*Element}, etc.).
+
+    \item \textbf{\texttt{insert\_in\_step}:} 
+    Inserts arbitrary lines (e.g., boundary conditions) immediately before \texttt{*End Step} of a \textit{named} step. Useful for adding per-step output requests or displacement controls after the rest of the file has been assembled.
+
+    \item \textbf{\texttt{fix\_restart\_frequency}:} 
+    Scans every line and replaces \texttt{frequency=0} with \texttt{frequency=1} in \texttt{*Restart} and \texttt{*Output} blocks. Abaqus ignores output requests with zero frequency, and this often introduces silent errors when input files are exported from the GUI.
 \end{itemize}
 
 \subsection{High-Level Writer}

@@ -24,11 +24,17 @@ This class handles the execution of a single simulation job. It is designed to b
     If enabled, it automatically creates and assigns a scratch directory for temporary solver files, keeping the main output directory clean.
 \end{itemize}
 
+\subsection{Abaqus Script Runner}
+\textbf{Class:} \texttt{AbaqusScriptRunner}
+
+Executes standalone Abaqus Python scripts (as opposed to full solver jobs). Key detail: it handles \textbf{UNC paths} (e.g., \texttt{\textbackslash\textbackslash server\textbackslash share}) transparently by wrapping the call in \texttt{pushd}/\texttt{popd}, which maps the UNC path to a temporary drive letter before execution and unmaps it afterwards.
+
 \subsection{Batch Orchestration}
 \textbf{Class:} \texttt{INPRunner}
 
-This class manages the execution of multiple input files in sequence.
+Manages the execution of multiple input files in sequence.
 \begin{itemize}
-    \item \textbf{Process Monitoring:} It launches the Abaqus process and monitors its return code. A code of \texttt{0} implies success, while anything else triggers error logging.
-    \item \textbf{Reporting:} After the batch completes, it generates a \texttt{summary\_report.txt} containing execution times and status (OK/ERROR) for every file processed. This allows the user to quickly identify failed simulations in large batches.
+    \item \textbf{Discovery:} \texttt{find\_inp\_files(pattern)} scans \texttt{base\_dir} recursively using a glob pattern. Default pattern is \texttt{**/*\_FI.inp}.
+    \item \textbf{Success Detection:} A job is considered successful only if the return code is \texttt{0} \textit{and} the corresponding \texttt{.odb} file was produced in the output directory. A zero return code without an ODB file is treated as a failure.
+    \item \textbf{Reporting:} After the batch, a \texttt{summary\_report.txt} is written to \texttt{simulation\_logs/} containing job name, status (OK/ERROR), wall-clock time, and a truncated error message for each file.
 \end{itemize}
