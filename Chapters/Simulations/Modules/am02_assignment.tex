@@ -8,19 +8,22 @@ Once the geometry is generated, it must be assigned physical properties and inst
 \subsection{Material Definition}
 \textbf{Script:} \texttt{\_set\_material.py}
 
-The \texttt{MaterialMixin} class creates the constitutive models in the Abaqus database.
+The \texttt{MaterialSetter.material(mat\_name, E\_Modulus, P\_ratio)} method creates the constitutive model in the Abaqus database.
 \begin{itemize}
-    \item \textbf{Elasticity:} Defines the \texttt{Elastic} behavior using Young's Modulus and Poisson's Ratio provided by the global configuration.
-    \item \textbf{Plasticity:} Optionally adds \texttt{Plastic} behavior. This is crucial for residual stress analysis, as the redistribution of stresses often induces localized yielding. The framework checks if plastic properties are defined in the config before creating this node in the material graph.
+    \item \textbf{Elasticity:} Calls \texttt{model.Material(name)} then \texttt{materials[name].Elastic(table=((E, nu),))} to define isotropic linear elastic behaviour.
 \end{itemize}
+
+\begin{remark}
+The method only defines elastic properties. Plasticity is not set here; if a plasticity node is needed it must be added separately outside this setter.
+\end{remark}
 
 \subsection{Section Management}
 \textbf{Scripts:} \texttt{\_set\_section.py}, \texttt{\_set\_section\_assign.py}
 
 In Abaqus, materials are referenced by "Sections", which are then assigned to geometry regions.
 \begin{enumerate}
-    \item \textbf{Creation:} The \texttt{SectionMixin} creates a \textbf{Solid Homogeneous Section}. It links the previously defined material (e.g., "WORK\_PIECE\_MATERIAL") to this section definition.
-    \item \textbf{Assignment:} The \texttt{SectionAssignMixin} applies this section to the actual part geometry. It targets the \textbf{Whole Part} (Cells) to ensure the entire volume simulates the specified metal properties.
+    \item \textbf{Creation:} \texttt{SectionSetter.create(mat\_name, cell\_set\_name, section\_name, homogeneous=True, thick=None, int\_points=None)} creates either a \texttt{HomogeneousSolidSection} (\texttt{homogeneous=True}, default) or a \texttt{HomogeneousShellSection} with thickness and integration points (\texttt{homogeneous=False}).
+    \item \textbf{Assignment:} \texttt{SectionAssigner} (embedded inside \texttt{SectionSetter}) applies the section to all cells when \texttt{cell\_set\_name is None}, or to a named cell set otherwise.
 \end{enumerate}
 
 \subsection{Assembly Instantiation}
@@ -28,6 +31,6 @@ In Abaqus, materials are referenced by "Sections", which are then assigned to ge
 
 Abaqus distinguishes between "Parts" (geometry definitions) and "Instances" (occurrences in the assembly). The solver runs on the assembly.
 \begin{itemize}
-    \item \textbf{Instance Creation:} The \texttt{InstanceMixin} imports the generated Part into the Assembly module.
-    \item \textbf{Naming Convention:} It forces the instance name to match the configuration default (e.g., \texttt{T\_SHAPE\_PART-1}). This strict naming is vital for the external \texttt{\_inp\_modules} (Part II) to correctly locate and inject boundary conditions later in the pipeline.
+    \item \textbf{Idempotency:} \texttt{InstanceSetter.create()} checks whether the instance name already exists in \texttt{rootAssembly.instances} before calling \texttt{rootAssembly.Instance()}, so re-runs do not raise duplicate-key errors.
+    \item \textbf{Naming Convention:} The instance name is resolved from \texttt{self.instance\_name}, which is set in \texttt{BaseAnalysis.\_\_init\_\_} as \texttt{part.name + "-1"} (e.g., \texttt{T\_Shape\_Part-1}). This strict naming is vital for \texttt{inp\_process} to correctly locate and inject boundary conditions later in the pipeline.
 \end{itemize}

@@ -3,35 +3,24 @@
 
 \textbf{Package:} \texttt{\_modules/geometry/}
 
-This package implements the Computer-Aided Design (CAD) logic of the framework. To support multiple experimental setups without code duplication, it employs a \textbf{Strategy Pattern}: each simulation type (e.g., T-Shape, Milling) is encapsulated in its own sub-package (\texttt{sim\_one}, \texttt{sim\_two}, etc.), but they all expose a consistent \texttt{ModelMixin} interface.
+Implements the CAD logic of the framework using a \textbf{Strategy Pattern}: each simulation type has its own sub-package with a \texttt{GeometrySetter} class that exposes a single \texttt{\_geometry(depth)} method returning a \texttt{(model, t\_part)} tuple. \texttt{BaseAnalysis} calls this via the abstract \texttt{\_get\_geometry\_setter()} method, so adding a new geometry requires only a new sub-package implementing that interface.
 
-\subsection{Strategy 1: T-Shape (Sim One)}
-\textbf{Sub-package:} \texttt{sim\_one/}
-
-Designed for the standard Residual Stress benchmark (Module A), this strategy generates a parametric T-shaped beam.
-
+\subsection{Strategy 1: T-Shape (\texttt{sim\_one})}
+Generates the standard T-profile benchmark geometry.
 \begin{itemize}
-    \item \textbf{Vertex Calculation (\texttt{\_get\_shape.py}):} 
-    Calculates the 2D coordinates of the T-profile cross-section based on the provided dimensions (web width, flange height, etc.). It returns a closed loop of points ensuring geometric continuity.
-    
-    \item \textbf{Solid Extrusion (\texttt{\_set\_geometry.py}):} 
-    Uses the Abaqus API \texttt{BaseSolidExtrude}. It draws the calculated profile on a sketch plane and extrudes it by the specified \texttt{Length} parameter to create the 3D part.
+    \item \textbf{\texttt{\_get\_shape.py} — \texttt{ShapeGetterI}:} Returns a dictionary of T-profile dimensions (\texttt{h\_width}, \texttt{h\_thickness}, \texttt{v\_width}, \texttt{v\_height}, \texttt{offset\_1}).
+    \item \textbf{\texttt{\_set\_geometry.py} — \texttt{GeometrySetter}:} Draws an 8-point closed polygon on a \texttt{ConstrainedSketch} using \texttt{PolygonDrawer} and extrudes it with \texttt{BaseSolidExtrude(depth=comprimento)} to produce \texttt{T\_Shape\_Part}.
 \end{itemize}
 
-\subsection{Strategy 2: Milling Profile (Sim Two)}
-\textbf{Sub-package:} \texttt{sim\_two/}
-
-Designed for the Profile Analysis experiment (Module B), dealing with material removal or complex boundary conditions.
-
+\subsection{Strategy 2: Milling Profile (\texttt{sim\_two})}
+Handles the Profile Analysis (Exp2 / milling) geometry with different orientation requirements.
 \begin{itemize}
-    \item \textbf{Geometry Logic (\texttt{\_set\_geometry2.py}):} 
-    Unlike the simple extrusion of Sim One, this module may handle additional geometric features or different orientation requirements specific to the milling setup.
-    
-    \item \textbf{Coordinate Handling (\texttt{\_get\_shape2.py}):} 
-    Provides the specialized vertex logic required for this specific profile, ensuring the mesh seeds align with the measurement points.
+    \item \textbf{\texttt{\_get\_shape2.py} — \texttt{ShapeGetterII}:} Provides the specialised vertex coordinates for the milling profile.
+    \item \textbf{\texttt{\_set\_geometry2.py} — \texttt{GeometrySetterTwo}:} Same sketch-and-extrude pattern as Sim One but with coordinates and model name specific to the milling setup.
 \end{itemize}
 
-\subsection{Integration: The Model Mixin}
-\textbf{Files:} \texttt{model\_mixin.py} (in each sub-package)
+\subsection{Strategy 3: Rectangular Block (\texttt{sim\_three})}
+\textbf{\texttt{\_set\_geometry3.py} — \texttt{GeometrySetterThree}:} Creates a simple rectangular prism (\texttt{width} × \texttt{height} × \texttt{depth}). Used for coupon-level validation cases where no complex cross-section is needed.
 
-The \texttt{ModelMixin} class acts as the standardized connector. Regardless of whether the underlying geometry is a T-Shape or a Milling plate, this mixin provides the main \texttt{build\_model()} method that the orchestration script calls. This allows the high-level pipeline to switch between experiments simply by importing a different Mixin, without changing the execution logic.
+\subsection{Strategy 4: Inverted T-Shape (\texttt{sim\_iv})}
+\textbf{\texttt{\_set\_geometry4.py} — \texttt{GeometrySetterIV}:} Produces an inverted T cross-section (flange at the bottom, web extending upward) with a fixed 25\,mm flange width and a parametric web width/height. The web is centred via offset $\texttt{ofs} = (25 - \texttt{width})/2$.

@@ -1,10 +1,10 @@
 \chapter{Abaqus Scripting Interface (ASI) Framework}
 \label{ch:abaqus_modules}
 
-\textbf{Module Path:} \texttt{src/Simulations/\_modules/}
+\textbf{Module Path:} \texttt{src/simulations/\_modules/}
 
 \begin{quote}
-    \textbf{Architecture Note:} This module represents the deepest layer of the simulation infrastructure. Unlike the text-based manipulation of \texttt{\_inp\_modules}, this framework operates directly within the Abaqus kernel (Python 2.7), utilizing the official API (`mdb`, `part`, `assembly`) to construct models programmatically.
+    \textbf{Architecture Note:} This module represents the deepest layer of the simulation infrastructure. Unlike the text-based manipulation of \texttt{inp\_process}, this framework operates directly within the Abaqus kernel (Python 2.7), utilizing the official API (\texttt{mdb}, \texttt{part}, \texttt{assembly}) to construct models programmatically.
 \end{quote}
 
 \section{Overview}
@@ -29,7 +29,89 @@ The framework is divided into four primary sub-packages:
 \end{itemize}
 
 \section{Design Philosophy}
-The module employs a **Mixin-based architecture**. A main simulation class typically inherits from multiple specialized mixins (e.g., \texttt{ModelMixin}, \texttt{MeshMixin}), composing a complete FEA model builder from small, reusable blocks. This approach manages the complexity of the Abaqus API, making the codebase maintainable and scalable.
+
+The module uses a \textbf{Setter-based service architecture} centred on three building blocks:
+
+\begin{itemize}
+    \item \textbf{\texttt{ContextMixin}:} Carries the shared Abaqus objects (\texttt{model}, \texttt{t\_part}, \texttt{instance\_name}, mesh size, length, etc.) and exposes \texttt{bind\_context} / \texttt{propagate\_to} to push those values down the full object graph automatically.
+
+    \item \textbf{\texttt{LoggerMixin}:} Inherits from \texttt{ContextMixin} and attaches a per-class \texttt{setup\_logger} instance on construction. All \texttt{Setter} classes inherit from this mixin.
+
+    \item \textbf{\texttt{ServiceMixin} + \texttt{SERVICE\_CATALOG}:} \texttt{ServiceMixin.run(catalog)} iterates a dictionary that maps attribute names (e.g., \texttt{\_mat}, \texttt{\_mesh}, \texttt{\_job}) to their \texttt{Setter} classes. It instantiates each one, binds it to \texttt{self}, and propagates context to all of them in one call.
+\end{itemize}
+
+The concrete simulation classes inherit from \textbf{\texttt{BaseAnalysis(LoggerMixin, ServiceMixin)}}. The constructor calls \texttt{ServiceMixin.run(SERVICE\_CATALOG)}, which builds all services, and then \texttt{bind\_context}, which wires the shared Abaqus objects into every service. Subclasses need only implement four abstract methods (\texttt{\_get\_geometry\_setter}, \texttt{\_setup\_steps}, \texttt{\_setup\_boundary\_conditions}, \texttt{\_setup\_partitions}); \texttt{run\_analysis()} then drives the full template sequence.
+
+\section{Base Class}
+\label{sec:am_base}
+
+\textbf{Script:} \texttt{base.py} \quad \textbf{Class:} \texttt{BaseAnalysis(LoggerMixin, ServiceMixin)}
+
+This is the single entry point for every concrete simulation script. It wires geometry, services, and the execution template together.
+
+\subsection{Constructor}
+
+\texttt{\_\_init\_\_(params, output\_dir)} performs four sequential steps:
+
+\begin{enumerate}
+    \item \textbf{Parameter unpacking:} Iterates \texttt{\_PARAM\_KEYS} and calls \texttt{setattr} to map each JSON key to the corresponding Python attribute:
+    \begin{table}[ht]
+    \centering
+    \begin{tabular}{ll}
+    \hline
+    \textbf{JSON key} & \textbf{Python attribute} \\
+    \hline
+    \texttt{mesh\_size}  & \texttt{self.mesh\_size} \\
+    \texttt{length}      & \texttt{self.comprimento} \\
+    \texttt{initialInc}  & \texttt{self.initialInc} \\
+    \texttt{maxInc}      & \texttt{self.maxInc} \\
+    \texttt{maxNumInc}   & \texttt{self.maxNumInc} \\
+    \texttt{minInc}      & \texttt{self.minInc} \\
+    \texttt{nlgeom}      & \texttt{self.nlgeom} \\
+    \texttt{time}        & \texttt{self.time} \\
+    \hline
+    \end{tabular}
+    \caption{\texttt{\_PARAM\_KEYS} mapping in \texttt{BaseAnalysis}.}
+    \end{table}
+
+    \item \textbf{Geometry creation:} Calls the abstract \texttt{\_get\_geometry\_setter()} (implemented by the subclass) and immediately calls \texttt{\_geometry(depth=self.comprimento)}, which returns the \texttt{(model, t\_part)} tuple and sets \texttt{self.instance\_name = t\_part.name + "-1"}.
+
+    \item \textbf{Service initialisation:} \texttt{\_init\_services()} imports \texttt{SERVICE\_CATALOG} from \texttt{\_modules}, calls \texttt{ServiceMixin.run(catalog)} to instantiate and bind all setters (e.g.\ \texttt{self.\_mat}, \texttt{self.\_sec}, \texttt{self.\_inst}, \texttt{self.\_mesh}, \texttt{self.\_job}), then calls \texttt{bind\_context} to propagate \texttt{model}, \texttt{t\_part}, and \texttt{instance\_name} to every service.
+\end{enumerate}
+
+\subsection{Template Method: \texttt{run\_analysis()}}
+
+The public API for running a full simulation. Calls the following sequence regardless of subclass:
+
+\begin{enumerate}
+    \item \texttt{first\_stage()} --- creates material, section, and assembly instance.
+    \item \texttt{\_setup\_partitions()} --- abstract; subclass applies datum planes and mesh partitions.
+    \item \texttt{self.\_mesh.mesh()} --- generates the C3D8R mesh.
+    \item \texttt{\_setup\_steps()} --- abstract; subclass creates analysis steps.
+    \item \texttt{\_setup\_boundary\_conditions()} --- abstract; subclass applies loads and BCs.
+    \item \texttt{self.\_job.create\_and\_move\_job()} --- writes the \texttt{.inp} and moves it to \texttt{output\_dir}.
+\end{enumerate}
+
+\begin{remark}
+\texttt{first\_stage()} hard-codes $E = 210\,000$ MPa and $\nu = 0.3$. These values are overwritten later by \texttt{INPInserter.replace\_material\_block} in the \texttt{pipeline} module using the values from \texttt{config.json}, so the hard-coded defaults only matter if the pipeline step is skipped.
+\end{remark}
+
+\subsection{Abstract Methods (Subclass Contract)}
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{ll}
+\hline
+\textbf{Method} & \textbf{Responsibility} \\
+\hline
+\texttt{\_get\_geometry\_setter()} & Return the correct \texttt{GeometrySetter} instance. \\
+\texttt{\_setup\_steps()}          & Create Abaqus analysis steps. \\
+\texttt{\_setup\_boundary\_conditions()} & Apply loads, BCs, and constraints. \\
+\texttt{\_setup\_partitions()}     & Apply datum planes and mesh partitions. \\
+\hline
+\end{tabular}
+\caption{Abstract methods that every concrete simulation class must implement.}
+\end{table}
 
 \input{Chapters/Simulations/Modules/am01_core}
 \input{Chapters/Simulations/Modules/am02_assignment}
