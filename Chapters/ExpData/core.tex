@@ -1,0 +1,181 @@
+\section{Core}
+\label{sec:core}
+
+\textbf{Module path:} \texttt{src/exp\_process/core/}
+
+The core layer contains stateless utilities for all mathematical and geometric operations. No class here reads from or writes to disk, and none has knowledge of experiment types. All methods are \texttt{@staticmethod} (except \texttt{DataTransformer}, which holds configuration state). This design allows procedures to compose core utilities freely without coupling.
+
+\subsection{OutlierCleaner}
+\label{subsec:cleaner}
+
+\textbf{File:} \texttt{core/cleaner.py}
+
+Removes outliers from point arrays using the Interquartile Range (IQR) method. Each axis is filtered independently using the configured factor.
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lp{9cm}}
+\hline
+\textbf{Method} & \textbf{Description} \\
+\hline
+\texttt{filter\_iqr(data, factors)} & Removes points outside $[Q1 - f \cdot IQR,\ Q3 + f \cdot IQR]$ for each axis specified in \texttt{factors}. Returns the filtered array. \\
+\hline
+\end{tabular}
+\caption{OutlierCleaner interface.}
+\end{table}
+
+\texttt{data} must be shape \texttt{(N, 3)}. \texttt{factors} is a dict mapping axis names to multipliers, e.g.:
+
+\begin{lstlisting}[language=Python]
+OutlierCleaner.filter_iqr(points, {'x': 1.5, 'y': 1.5, 'z': 1.2})
+\end{lstlisting}
+
+Axes not present in \texttt{factors} are not filtered. If \texttt{data} is empty, it is returned unchanged.
+
+\subsection{Fitter}
+\label{subsec:fitter}
+
+\textbf{File:} \texttt{core/fitter.py}
+
+Polynomial fitting and evaluation for both 1D (Exp2 curves) and 2D (Exp1 surfaces). All methods return a model \texttt{dict} that encodes the polynomial type, degree, and coefficients, allowing evaluation to be decoupled from fitting.
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lp{9cm}}
+\hline
+\textbf{Method} & \textbf{Description} \\
+\hline
+\texttt{fit\_1d\_poly(x, z, degree, ...)} & Fits a 1D polynomial. Supports optional x-normalization to $[-1, 1]$ and Ridge regularization ($\lambda > 0$). Returns coefficients back-transformed to the original x scale. \\
+\texttt{eval\_1d\_poly(x, model)} & Evaluates a 1D model at scalar or array \texttt{x} using \texttt{np.polyval}. \\
+\texttt{fit\_2d\_poly(x, y, z, degree)} & Fits a separable 2D polynomial of the form $z = \sum_{k=1}^{d} (a_k x^k + b_k y^k) + c$. Uses \texttt{np.linalg.lstsq}. \\
+\texttt{eval\_2d\_poly(x, y, model)} & Evaluates a 2D model at arrays \texttt{x}, \texttt{y}. Returns a \texttt{np.ndarray}. \\
+\hline
+\end{tabular}
+\caption{Fitter interface.}
+\end{table}
+
+The 2D polynomial is separable: cross-terms ($x^i y^j$, $i,j > 0$) are not included. The coefficient vector layout is \texttt{[a\_1, b\_1, a\_2, b\_2, ..., c]} where \texttt{c} is the constant bias stored last. This layout is shared with \texttt{ModelOps}.
+
+\textbf{Model dict structure:}
+
+\begin{lstlisting}[language=Python]
+# 1D
+{"type": "poly_1d", "degree": 4, "coeffs": [...], "norm": {...}, "fit": {...}}
+
+# 2D
+{"type": "poly_2d", "degree": 6, "coeffs": [...]}
+\end{lstlisting}
+
+\subsection{MeshGenerator}
+\label{subsec:mesher}
+
+\textbf{File:} \texttt{core/mesher.py}
+
+Generates structured point grids for surface reconstruction. Used by \texttt{Rebuilder}.
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lp{9cm}}
+\hline
+\textbf{Method} & \textbf{Description} \\
+\hline
+\texttt{rectangular\_grid(width, height, step)} & Regular grid over $[0, \text{width}] \times [0, \text{height}]$ with spacing \texttt{step}. Returns flat \texttt{(x, y)} arrays. \\
+\texttt{t\_shape\_grid(dims, step)} & Grid of points inside a T-shaped polygon, built as the union of two rectangles (horizontal flange and vertical web). Uses Shapely for containment testing. Returns flat \texttt{(x, y)} arrays. \\
+\hline
+\end{tabular}
+\caption{MeshGenerator interface.}
+\end{table}
+
+\texttt{t\_shape\_grid} expects a \texttt{dims} dict with keys \texttt{h\_width}, \texttt{h\_thickness}, \texttt{v\_width}, \texttt{v\_height}, and optionally \texttt{offset\_1} for the horizontal position of the web. If \texttt{offset\_1} is absent, the web is centered on the flange.
+
+\subsection{ModelOps}
+\label{subsec:operations}
+
+\textbf{File:} \texttt{core/operations.py}
+
+Arithmetic operations on fitted model dicts. Handles coefficient alignment between models of different degrees, with separate logic for 1D and 2D coefficient layouts.
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lp{9cm}}
+\hline
+\textbf{Method} & \textbf{Description} \\
+\hline
+\texttt{subtract\_coeffs(model\_high, model\_low)} & Subtracts \texttt{model\_low} from \texttt{model\_high}, padding the lower-degree model with zeros as needed. For 1D, pads from the left (high-degree terms); for 2D, pads term-by-term preserving the bias. \\
+\texttt{average\_models(models)} & Computes the element-wise mean of coefficients across a list of same-degree models. Raises \texttt{ValueError} if degrees differ. \\
+\hline
+\end{tabular}
+\caption{ModelOps interface.}
+\end{table}
+
+\texttt{model\_high} must have degree $\geq$ \texttt{model\_low}. The returned dict preserves \texttt{type}, \texttt{degree}, and \texttt{norm} from \texttt{model\_high}.
+
+\subsection{Rebuilder}
+\label{subsec:rebuilder}
+
+\textbf{File:} \texttt{core/rebuilder.py}
+
+Reconstructs point clouds from fitted models by evaluating them on structured grids. Composes \texttt{MeshGenerator} and \texttt{Fitter}.
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lp{9cm}}
+\hline
+\textbf{Method} & \textbf{Description} \\
+\hline
+\texttt{rebuild\_surface(model, geometry\_type, dims, step)} & Evaluates a 2D model on a \texttt{t\_shape} or \texttt{rectangular} grid. Returns an \texttt{(N, 3)} array. \\
+\texttt{rebuild\_curve\_extrusion(model\_1d, dims, step\_x, step\_y)} & Evaluates a 1D model along x and extrudes uniformly in y. Returns an \texttt{(N, 3)} array. \\
+\hline
+\end{tabular}
+\caption{Rebuilder interface.}
+\end{table}
+
+\subsection{StepSegmenter}
+\label{subsec:segmenter}
+
+\textbf{File:} \texttt{core/segmenter.py}
+
+Detects step discontinuities in point clouds by identifying large relative jumps in x-values after sorting. Used in the Exp1 preprocessing stage to split the merged bottom+wall cloud into individual measurement steps.
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lp{9cm}}
+\hline
+\textbf{Method} & \textbf{Description} \\
+\hline
+\texttt{find\_steps(points, threshold\_percent)} & Sorts points by \texttt{(x, y)}, computes relative x-differences, and splits at indices where the difference exceeds \texttt{threshold\_percent} (default \texttt{0.6\%}). Returns a list of arrays. \\
+\hline
+\end{tabular}
+\caption{StepSegmenter interface.}
+\end{table}
+
+\subsection{DataTransformer}
+\label{subsec:transformer}
+
+\textbf{File:} \texttt{core/transformer.py}
+
+Applies per-side geometric corrections (mirroring, inversion, coordinate offsets) to raw point arrays before fitting. Unlike the other core classes, \texttt{DataTransformer} is instantiated with a \texttt{rules} dict that maps side IDs to their transformations.
+
+\begin{lstlisting}[language=Python]
+transformer = DataTransformer(rules={
+    "Side2": {"mirror_x": True, "invert_z": True},
+    "Side1": {"offset_x": 5.0}
+})
+corrected = transformer.apply("Side2", points)
+\end{lstlisting}
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lp{8cm}}
+\hline
+\textbf{Rule key} & \textbf{Effect} \\
+\hline
+\texttt{mirror\_x} & Reflects x around \texttt{mirror\_ref} (defaults to \texttt{max(x)}). \\
+\texttt{invert\_z} & Negates the z (or y for 2-column arrays) coordinate. \\
+\texttt{offset\_x/y/z} & Adds a scalar offset to the respective coordinate. \\
+\hline
+\end{tabular}
+\caption{DataTransformer rule keys.}
+\end{table}
+
+Sides with no entry in \texttt{rules} are returned unchanged. Points must have shape \texttt{(N, 2)} or \texttt{(N, 3)}.

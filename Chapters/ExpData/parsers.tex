@@ -1,0 +1,97 @@
+\section{Parsers}
+\label{sec:parsers}
+
+\textbf{Module path:} \texttt{src/exp\_process/parsers/}
+
+Parsers are responsible for reading raw \texttt{.txt} files from disk and returning structured NumPy arrays. They are the only layer with knowledge of the input directory structure and file naming conventions. All downstream code receives plain arrays and has no dependency on file paths.
+
+Each parser implements the \texttt{AbstractParser} interface and handles one experiment type. The output of \texttt{load()} is always a \texttt{dict} mapping an identifier string to a NumPy array, so all procedures can iterate over them uniformly regardless of experiment type.
+
+\subsection{AbstractParser}
+\label{subsec:abstract_parser}
+
+\textbf{File:} \texttt{parsers/\_base.py}
+
+Defines the interface that all parsers must implement. Contains no logic.
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lll}
+\hline
+\textbf{Method} & \textbf{Signature} & \textbf{Description} \\
+\hline
+\texttt{\_\_init\_\_} & \texttt{(input\_dir: str)} & Stores the input directory path. \\
+\texttt{load} & \texttt{(target\_id: str) -> dict} & Load raw data for a given ID. \\
+\texttt{list\_ids} & \texttt{() -> list} & List all available IDs in \texttt{input\_dir}. \\
+\hline
+\end{tabular}
+\caption{AbstractParser interface.}
+\label{tab:abstract_parser}
+\end{table}
+
+To add a new experiment type, subclass \texttt{AbstractParser} and implement both methods. No changes to procedures or pipeline are required as long as the return format is respected.
+
+\subsection{TShapeParser — Experiment 1}
+\label{subsec:tshape_parser}
+
+\textbf{File:} \texttt{parsers/t\_shape.py}
+
+Reads surface measurement data from T-shaped specimens. The input directory is expected to contain files named:
+
+\begin{verbatim}
+{SideID}_Measurment{N}_bottom.txt
+{SideID}_Measurment{N}_wall.txt
+\end{verbatim}
+
+where \texttt{N} is the measurement number (integer) and \texttt{SideID} is typically \texttt{Side1} or \texttt{Side2}. Each side has multiple measurements (repetitions), and each measurement is split into a \texttt{bottom} region and a \texttt{wall} region in separate files.
+
+\textbf{load(side\_id)} stacks \texttt{bottom} and \texttt{wall} arrays vertically per measurement using \texttt{np.vstack}, returning:
+
+\begin{lstlisting}[language=Python]
+{
+    "1": np.ndarray,  # measurement 1: bottom + wall
+    "2": np.ndarray,  # measurement 2: bottom + wall
+    ...
+}
+\end{lstlisting}
+
+The merge of \texttt{bottom} and \texttt{wall} preserves region identity only implicitly through row ordering. If a region file is missing for a given measurement number, that measurement is skipped with a printed warning.
+
+\textbf{list\_ids()} scans \texttt{input\_dir} for filenames matching the naming pattern and returns the unique side identifiers found (e.g., \texttt{['Side1', 'Side2']}).
+
+\subsection{RecShapeParser — Experiment 2}
+\label{subsec:recshape_parser}
+
+\textbf{File:} \texttt{parsers/rec\_shape.py}
+
+Reads 1D curve measurement data from rectangular specimens. The input directory is expected to contain subfolders named:
+
+\begin{verbatim}
+{sample_id}L/   <-- contains one .txt or .csv file
+{sample_id}R/   <-- contains one .txt or .csv file
+\end{verbatim}
+
+where \texttt{sample\_id} is a numeric string (e.g., \texttt{1}, \texttt{2}). L and R represent measurements taken from opposing directions on the same specimen, forming a single geometric profile when combined.
+
+\textbf{load(sample\_id)} merges L and R as follows: R is reversed (\texttt{[::-1]}) to align acquisition direction with L, both are truncated to the shorter length, and their element-wise average is computed. The result is a single array representing the merged profile:
+
+\begin{lstlisting}[language=Python]
+{"1": np.ndarray}  # averaged L/R profile for sample 1
+\end{lstlisting}
+
+If either folder or file is missing, the sample is skipped with a printed warning.
+
+\textbf{list\_ids()} scans \texttt{input\_dir} for folders matching \texttt{\^{}(\textbackslash d+)[LR]\$} and returns unique numeric identifiers (e.g., \texttt{['1', '2', '3']}).
+
+\subsection{Adding a New Parser}
+
+To support a new experiment type:
+
+\begin{enumerate}
+    \item Create \texttt{parsers/my\_type.py} with a class inheriting \texttt{AbstractParser}.
+    \item Implement \texttt{list\_ids()} to scan the input directory.
+    \item Implement \texttt{load(target\_id)} to return \texttt{\{id: np.ndarray\}}.
+    \item Create the corresponding pipeline entry point in \texttt{pipeline/}.
+\end{enumerate}
+
+No changes to \texttt{core/} or \texttt{procedures/} are required.

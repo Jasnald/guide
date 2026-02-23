@@ -1,36 +1,105 @@
-\chapter{Experimental Data Management}
-\label{ch:exp_data}
+\chapter{Experimental Data Processing}
+\label{ch:exp_process}
 
-\textbf{Module Path:} \texttt{src/Exp\_Data/}
+\textbf{Module Path:} \texttt{src/exp\_process/}
 
-This module serves as the central repository and configuration manager for the project. Its primary purpose is to bridge the gap between the physical experimental samples and their digital twins. By managing raw measurement data and simulation parameters, it ensures that the Finite Element models are generated based on the \textit{actual} mean dimensions of the manufactured specimens, rather than theoretical CAD values.
+This module implements the full preprocessing and fitting pipeline for raw experimental surface and curve measurements. It replaces both the previous \texttt{Exp\_Data} and \texttt{Preprocess} modules with a more structured, object-oriented architecture designed to be extended for new experiment types with minimal changes to existing code.
+
+Previously, \texttt{Exp\_Data} handled physical dimensions and sample configuration while \texttt{Preprocess} ran separate per-experiment scripts for cleaning, fitting, and visualization. These responsibilities are now unified under \texttt{exp\_process}, with the processing logic reorganized into reusable, experiment-agnostic layers. Sample dimensions and simulation configuration remain in separate modules outside \texttt{exp\_process} (see \texttt{data/input/}).
+
+The module handles two distinct experiment types, each with their own geometry and data format:
+
+\begin{itemize}
+    \item \textbf{Experiment 1 (T-Shape):} 3D surface measurements from a T-shaped specimen, acquired in multiple passes (\texttt{bottom} and \texttt{wall} regions) across two measurement sides. Multiple measurements per side are averaged during parsing.
+    \item \textbf{Experiment 2 (Rectangular Profile):} 1D curve measurements from a rectangular specimen, acquired in two opposing directions (Left/Right). The L/R pair is averaged and merged into a single profile during parsing, before any further processing.
+\end{itemize}
 
 \section{Module Architecture}
 
-The module is structured to support multiple experimental campaigns, isolating the data logic for each specific sample geometry.
-
-\subsection{Sub-Packages}
-\begin{itemize}
-    \item \textbf{Experiment 1 (\texttt{s1\_exp}):} 
-    Focuses on the standard T-Shape geometry used for the primary Residual Stress benchmark. It handles the averaging of flange and web measurements to define the parameterized model.
-    
-    \item \textbf{Experiment 2 (\texttt{s2\_exp}):} 
-    Dedicated to the Profile/Milling experiment. It manages the dimensions for the milling plate and the specific cut geometries required for the sensitivity analysis (to be detailed in subsequent sections).
-\end{itemize}
-
-\subsection{Core Functionalities}
-Across both experiments, the module provides three key services to the framework:
+The module is organized into five layers, each with a well-defined responsibility. Data flows top-to-bottom through these layers, with configuration injected at the pipeline level.
 
 \begin{enumerate}
-    \item \textbf{Dimensional Averaging:} 
-    Scripts like \texttt{sample\_dim.py} and \texttt{mean\_dim.py} ingest lists of raw caliper measurements (e.g., widths, thicknesses at multiple points) and calculate the statistical mean. These values are then exported as a dictionary to be consumed by the Geometry Generators.
-    
-    \item \textbf{Configuration Management:} 
-    The \texttt{write\_input.py} script defines the schema for the \texttt{config.json} file. It validates parameters such as Young's Modulus, mesh density ranges, and directory paths, ensuring the simulation pipeline receives valid inputs.
-    
-    \item \textbf{User Interface (GUI):} 
-    To facilitate parameter tuning without editing JSON files manually, the module includes a graphical interface (\texttt{write\_input\_gui.py}). This tool allows users to modify material properties, define DOE ranges (Design of Experiments), and save valid configurations visually.
+    \item \textbf{Parsers (\texttt{parsers/}):} Read raw \texttt{.txt} files from disk and return structured NumPy arrays. One parser class per experiment type.
+    \item \textbf{Core (\texttt{core/}):} Stateless mathematical and geometric utilities — cleaning, fitting, meshing, transforming, segmenting, and reconstructing. These classes have no knowledge of file paths or experiment types.
+    \item \textbf{Procedures (\texttt{procedures/}):} Orchestrate the core utilities into named pipeline stages: \texttt{preprocess}, \texttt{fitting}, \texttt{comparison}, and \texttt{validation}. Each procedure reads from and writes to disk as JSON.
+    \item \textbf{Pipeline (\texttt{pipeline/}):} High-level entry points that chain procedures together. A user runs the pipeline; the pipeline calls the procedures in order.
+    \item \textbf{Utils \& GUI (\texttt{utils/}, \texttt{gui/}):} JSON I/O helpers and the interactive point cloud viewer used in the validation step.
 \end{enumerate}
 
-\input{Chapters/ExpData/e1}
-\input{Chapters/ExpData/e2}
+\begin{figure}[ht]
+    \centering
+    \begin{verbatim}
+    [Raw .txt files]
+         |
+    [ Parsers ]  <-- reading + averaging (Exp1: multi-pass; Exp2: L/R merge)
+         |
+    [ Procedures: Preprocess ]  <-- IQR cleaning, step segmentation, JSON output
+         |
+    [ GUI: Validation ]  <-- manual point deletion (blocking)
+         |
+    [ Procedures: Fitting ]  <-- 1D/2D polynomial fitting, JSON output
+         |
+    [ Procedures: Comparison ]  <-- subtraction, averaging, rebuild output
+    \end{verbatim}
+    \caption{Data flow through the \texttt{exp\_process} pipeline.}
+    \label{fig:exp_process_flow}
+\end{figure}
+
+\section{Dependencies}
+
+The module depends on standard scientific Python libraries. All are listed in \texttt{src/exp\_process/deps\_core.py} and \texttt{deps\_gui.py}:
+
+\begin{itemize}
+    \item \textbf{Core:} \texttt{numpy}, \texttt{shapely}, \texttt{scipy} (implicit via \texttt{numpy.linalg})
+    \item \textbf{GUI:} \texttt{matplotlib} (TkAgg backend), \texttt{tkinter}
+\end{itemize}
+
+\section{How to Run}
+
+calma calma calma calma calma calma
+
+
+\section{File Structure}
+
+\begin{verbatim}
+src/exp_process/
+    deps_core.py          # core imports
+    deps_gui.py           # GUI imports
+    parsers/
+        _base.py          # AbstractParser
+        t_shape.py        # Experiment 1 parser
+        rec_shape.py      # Experiment 2 parser
+    core/
+        cleaner.py        # IQR outlier removal
+        fitter.py         # 1D and 2D polynomial fitting
+        mesher.py         # grid generation
+        operations.py     # model arithmetic (subtract, average)
+        rebuilder.py      # surface/curve reconstruction
+        segmenter.py      # step detection
+        transformer.py    # geometric corrections
+    procedures/
+        preprocess.py     # Stage 1: clean and segment
+        fitting.py        # Stage 3: polynomial fitting
+        comparison.py     # Stage 4: model averaging
+        validation.py     # Stage 2: GUI launcher
+    pipeline/
+        base.py           # BasePipeline (abstract)
+        surface.py        # Experiment 1 full pipeline
+        curve.py          # Experiment 2 full pipeline
+    gui/
+        viewer.py         # PointCloudViewer
+    utils/
+        io.py             # JSON save/load utilities
+\end{verbatim}
+
+calma calma calma calma calma calma
+
+\section{Chapter Organization}
+
+The following sections document each layer in detail, including configuration parameters, extension points, and common modification scenarios.
+
+\input{Chapters/ExpData/parsers}
+\input{Chapters/ExpData/core}
+\input{Chapters/ExpData/procedures}
+\input{Chapters/ExpData/pipeline}
+\input{Chapters/ExpData/utils_gui}
