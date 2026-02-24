@@ -12,116 +12,104 @@
     \item \texttt{src/simulations/rsa2/script.py} --- Exp2 RSA builder
 \end{itemize}
 
-Both pipelines orchestrate the full Residual Stress Analysis lifecycle. Unlike the Contour Method workflow, RSA has a strict dependency on the CMA results: the measured stress fields must already exist in XDMF/HDF5 format before mapping can begin.
+Both pipelines follow the shared two-phase pattern described in Chapter~\ref{ch:workflow_pattern}. Unlike the Contour Method workflow, RSA has two additional concerns: a \emph{strict dependency on CMA results} and a \emph{stress-mapping bridge} that runs between mesh generation and job submission.
 
 % ─────────────────────────────────────────────────────────────
-\section{Experiment 1: \texttt{e1\_rs\_pipeline.py}}
-\label{sec:e1_rs}
+\section{CMA Dependency}
+\label{sec:rsa_cma_dep}
 
-\texttt{main(run\_cma, run\_rsa, convertion\_process\_rsa)} accepts three flags:
+Each RSA pipeline accepts a \texttt{run\_cma} flag. When \texttt{True}, the script imports and calls the corresponding CM pipeline (\texttt{e1\_cm\_pipeline.main()} or \texttt{e2\_cm\_pipeline.main()}) before starting its own workflow. This guarantees that the HDF5 files containing the measured stress fields are up to date.
 
-\subsection{CMA Dependency}
-If \texttt{run\_cma=True}, the script imports and calls \texttt{e1\_cm\_pipeline.main()} before starting its own workflow. This guarantees the HDF5 files with the measured stress fields are up to date.
+% ─────────────────────────────────────────────────────────────
+\section{RSA-Specific Phase 1: Stress Mapping and IC Injection}
+\label{sec:rsa_phase1}
 
-\subsection{Phase 1 --- Simulation}
-Controlled by \texttt{run\_rsa}:
+After mesh generation (Step~3 of the shared pattern), the RSA pipeline executes two extra sub-steps before job submission:
 
-\begin{enumerate}
-    \item \texttt{ClearDirectory(config.rea\_directory)}
-    \item Override the geometry script to \texttt{rsa/script.py}:
-    \begin{lstlisting}[language=Python]
-config.geometry_script = _here / "rsa" / "script.py"
-    \end{lstlisting}
-    \item \texttt{ParameterGenerator + GeometryGenerator} --- generates RSA meshes via Abaqus CAE.
-    \item \textbf{Stress mapping (ElementProcess bridge):}
-    \begin{lstlisting}[language=Python]
+\subsection{Stress Mapping (ElementProcess Bridge)}
+\label{sec:rsa_stress_mapping}
+
+\begin{lstlisting}[language=Python]
 Nodes_main(str(config.rea_directory), use_s1=True, use_s2=False, use_s3=False)
 proc = StressProcessor(str(config.rea_directory), tolerance=5e-2, chunk_size=10000)
 proc.process_all_simulations(str(cm_hdf5_path))
-    \end{lstlisting}
-    \texttt{Nodes\_main} extracts element centroids from the RSA mesh; \texttt{StressProcessor} maps $S_{33}$ from the CMA HDF5 files onto those centroids using 2D KDTree (see Chapter~\ref{sec:ep_datadriven}).
-    \item \texttt{ResidualProcessor(config).run\_batch()} --- injects \texttt{*Initial Conditions} into every \texttt{.inp}.
-    \item \texttt{INPRunner.run\_all(silent=True)} --- submits jobs. 
-\end{enumerate}
+\end{lstlisting}
 
-\subsection{Phase 2 --- Result Conversion}
-\begin{itemize}
-    \item \texttt{ResultConverter.run\_pipeline(method\_type="Residual\_Stresses\_Analysis", script\_module="rsa")} --- ODB extraction via \texttt{rsa/conv.py}, then NPY-to-XDMF.
-\end{itemize}
+\texttt{Nodes\_main} extracts element centroids from the RSA mesh; \texttt{StressProcessor} maps $S_{33}$ from the CMA HDF5 files onto those centroids using 2D KDTree (see Chapter~\ref{sec:ep_datadriven}). For Experiment~2, \texttt{StressProcessorBatch} replaces \texttt{StressProcessor} to handle the multi-case (\texttt{S1\_}, \texttt{S2\_}, \ldots) directory layout (see Chapter~\ref{sec:ep_batch_variant}).
+
+\subsection{Initial-Condition Injection}
+
+\texttt{ResidualProcessor(config).run\_batch()} injects \texttt{*Initial Conditions} blocks into every \texttt{.inp} file before solver submission.
 
 % ─────────────────────────────────────────────────────────────
-\section{Experiment 2: \texttt{e2\_rs\_pipeline.py}}
-\label{sec:e2_rs}
+\section{RSA-Specific Phase 2: Result Conversion}
+\label{sec:rsa_conversion}
 
-Structurally identical to Exp1 with two differences:
-
-\begin{enumerate}
-    \item Geometry script → \texttt{rsa2/script.py} (block cross-section).
-    \item Uses \texttt{StressProcessorBatch} instead of \texttt{StressProcessor}, which handles the multi-case (\texttt{S1\_}, \texttt{S2\_}, \ldots) directory layout produced by the Exp2 CMA batch (see Chapter~\ref{sec:ep_batch_variant}).
-\end{enumerate}
+\begin{itemize}
+    \item \texttt{ResultConverter.run\_pipeline(method\_type="Residual\_Stresses\_Analysis", script\_module="rsa")} --- ODB extraction via \texttt{rsa/conv.py}, then NPY-to-XDMF compilation.
+\end{itemize}
 
 \begin{quote}
 \textbf{Note:} \texttt{rsa2} does \textbf{not} have a \texttt{conv.py} file. Result conversion for Exp2 RSA reuses the same \texttt{rsa/conv.py} extraction script.
 \end{quote}
 
 % ─────────────────────────────────────────────────────────────
-\section{CAE Script: \texttt{rsa/script.py} (Exp1 RSA Builder)}
-\label{sec:rsa_script}
+\section{Multi-Step Physics}
+\label{sec:rsa_multistep}
 
-Defines \texttt{ResidualAnalysis(BaseAnalysis)}, which models the material-removal experiment using a 3-step sequence.
-
-\subsection{Initialisation}
-
-Beyond the standard \texttt{BaseAnalysis} constructor, it performs two additional steps:
-\begin{enumerate}
-    \item \textbf{Plane settings:} \texttt{\_load\_plane\_settings()} reads \texttt{data/e1\_plane\_settings.json} to obtain the ZX and ZY cutting-plane coordinates. These are stored in \texttt{self.selected\_planes} (consumed by \texttt{\_rm\_datum}) and \texttt{self.remove\_region}.
-    \item \textbf{Extra propagation:} \texttt{self.propagate\_to(\_rm\_datum, \_rm\_region, \_sets)} pushes the plane coordinates and region info into the geometry-setup services.
-\end{enumerate}
-
-\subsection{Abstract Method Implementations}
-
-\begin{table}[ht]
-\centering
-\begin{tabular}{ll}
-\hline
-\textbf{Method} & \textbf{Implementation} \\
-\hline
-\texttt{\_get\_geometry\_setter} & \texttt{GeometrySetter()} (T-shape, \texttt{sim\_one}). \\
-\texttt{\_setup\_partitions}     & Applies datum planes via \texttt{\_rm\_datum} then mesh partitions. \\
-\texttt{\_setup\_steps}          & Creates 3 sequential static steps (see below). \\
-\texttt{\_setup\_boundary\_conditions} & Encastre, model change, pinned BC, node BCs (see below). \\
-\hline
-\end{tabular}
-\end{table}
-
-\subsection{Multi-Step Physics}
-
-Three steps are created in sequence, each with \texttt{previous} chained to the prior step:
+Unlike the single-step CM workflow, every RSA CAE script creates a \textbf{three-step} analysis sequence, each with \texttt{previous} chained to the prior step:
 
 \begin{enumerate}
     \item \textbf{Material-Removal:} \texttt{ModelChangeSetter} deactivates the ``Remove'' element set, simulating the physical cut.
     \item \textbf{BC-Removal:} Removes the encastre BC applied below the $y$-cutoff ($y < h_{avg}/8$), allowing the part to deform.
-    \item \textbf{BC-Removal\_Nodes:} Releases pinned nodal BCs at $y < 0$ and applies final node displacement constraints via \texttt{\_bc\_node.setI()}.
+    \item \textbf{BC-Removal\_Nodes:} Releases pinned nodal BCs at $y < 0$ and applies final node displacement constraints via \texttt{\_bc\_node.setI()} (Exp1) or \texttt{\_bc\_node.setII()} (Exp2).
 \end{enumerate}
 
-\subsection{Overridden \texttt{run\_analysis()}}
+% ─────────────────────────────────────────────────────────────
+\section{Plane Settings and Extra Initialisation}
+\label{sec:rsa_plane_settings}
+
+Beyond the standard \texttt{BaseAnalysis} constructor, \texttt{ResidualAnalysis} performs two additional initialisation steps:
+
+\begin{enumerate}
+    \item \textbf{Plane settings:} \texttt{\_load\_plane\_settings()} reads the experiment's JSON file (\texttt{data/e1\_plane\_settings.json} or \texttt{data/e2\_plane\_settings.json}) to obtain the ZX and ZY cutting-plane coordinates. These are stored in \texttt{self.selected\_planes} (consumed by \texttt{\_rm\_datum}) and \texttt{self.remove\_region}.
+    \item \textbf{Extra propagation:} \texttt{self.propagate\_to(\_rm\_datum, \_rm\_region, \_sets)} pushes the plane coordinates and region info into the geometry-setup services.
+\end{enumerate}
+
+% ─────────────────────────────────────────────────────────────
+\section{Overridden \texttt{run\_analysis()}}
+\label{sec:rsa_run_override}
 
 \texttt{ResidualAnalysis} overrides \texttt{BaseAnalysis.run\_analysis()} to insert two extra calls:
 \begin{itemize}
-    \item \texttt{self.\_sets.setI()} --- creates named element/node sets required by the BC definitions, inserted after mesh generation.
+    \item \texttt{self.\_sets.setI()} (or \texttt{setII()} for Exp2) --- creates named element/node sets required by the BC definitions, inserted after mesh generation.
     \item \texttt{self.t\_part.generateMesh()} --- a second mesh generation after boundary conditions are applied, ensuring the final partitioned mesh is consistent.
 \end{itemize}
 
 % ─────────────────────────────────────────────────────────────
-\section{CAE Script: \texttt{rsa2/script.py} (Exp2 RSA Builder)}
-\label{sec:rsa2_script}
+\section{Experiment Comparison}
+\label{sec:rsa_exp_comparison}
+\label{sec:rsa_script}
 
-\texttt{ResidualAnalysis(BaseAnalysis)} for Experiment 2. Differences from Exp1:
+Both CAE scripts define \texttt{ResidualAnalysis(BaseAnalysis)}. The per-experiment differences are:
 
-\begin{itemize}
-    \item \textbf{Geometry:} Uses \texttt{GeometrySetterTwo()} (block from \texttt{sim\_two}).
-    \item \textbf{Constructor:} Accepts an explicit \texttt{plane\_settings\_path} argument instead of resolving it internally. For standalone runs, uses \texttt{data/e2\_plane\_settings.json}.
-    \item \textbf{Step names:} Defined at module level as \texttt{STEP\_NAMES = ("Material-Removal", "BC-Removal", "BC-Removal\_Nodes")}.
-    \item \textbf{Sets and BCs:} Calls \texttt{\_sets.setII()} and \texttt{\_bc\_node.setII()} (Exp2 variants) instead of \texttt{setI()}.
-    \item \textbf{Partitions:} No call to \texttt{\_invt\_mesh\_part.set()} — only datum-plane partitions from \texttt{\_rm\_datum} are applied.
-\end{itemize}
+\begin{table}[ht]
+\centering
+\begin{tabular}{lp{5.2cm}p{5.2cm}}
+\hline
+\textbf{Aspect} & \textbf{Experiment 1 (T-shape)} & \textbf{Experiment 2 (Block)} \\
+\hline
+Geometry script    & \texttt{rsa/script.py}  & \texttt{rsa2/script.py} (overridden at runtime) \\
+Geometry class     & \texttt{GeometrySetter} (\texttt{sim\_one}) & \texttt{GeometrySetterTwo} (\texttt{sim\_two}) \\
+Stress mapper      & \texttt{StressProcessor} (single-case) & \texttt{StressProcessorBatch} (multi-case \texttt{S1\_}, \texttt{S2\_}, \ldots) \\
+CAE class          & \texttt{ResidualAnalysis(BaseAnalysis)} & \texttt{ResidualAnalysis(BaseAnalysis)} \\
+Plane settings     & Resolved internally from \texttt{data/e1\_plane\_settings.json} & Explicit \texttt{plane\_settings\_path} argument; default \texttt{data/e2\_plane\_settings.json} \\
+Step names         & Inline string literals & Module-level \texttt{STEP\_NAMES} tuple \\
+Sets / BCs         & \texttt{\_sets.setI()}, \texttt{\_bc\_node.setI()} & \texttt{\_sets.setII()}, \texttt{\_bc\_node.setII()} \\
+Partitions         & \texttt{\_invt\_mesh\_part.set()} + datum planes & Datum planes only (no \texttt{\_invt\_mesh\_part}) \\
+Result conversion  & \texttt{rsa/conv.py} & Reuses \texttt{rsa/conv.py} (no \texttt{rsa2/conv.py}) \\
+\hline
+\end{tabular}
+\caption{Per-experiment differences in the RSA workflow.}
+\label{tab:rsa_comparison}
+\end{table}

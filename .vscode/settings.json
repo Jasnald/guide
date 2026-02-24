@@ -4,7 +4,7 @@
             "name": "XeLaTeX (IPLeiria Template)",
             "tools": [
                 "xelatex",
-                "bibtex",
+                "biber",
                 "xelatex",
                 "xelatex"
             ]
@@ -13,18 +13,20 @@
             "name": "Compilar Direto (Sem Perl)",
             "tools": [
                 "pdflatex",
-                "bibtex",
+                "biber",
                 "pdflatex",
                 "pdflatex"
             ]
         }
     ],
     "latex-workshop.latex.recipe.default": "XeLaTeX (IPLeiria Template)",
+    "latex-workshop.latex.autoBuild.run": "onSave",
     "latex-workshop.latex.tools": [
         {
             "name": "xelatex",
             "command": "C:/Users/adam-m52909t0h57knl0/AppData/Local/Programs/MiKTeX/miktex/bin/x64/xelatex.exe",
             "args": [
+                "-shell-escape",
                 "-synctex=1",
                 "-interaction=nonstopmode",
                 "-file-line-error",
@@ -36,6 +38,7 @@
             "name": "pdflatex",
             "command": "C:/Users/adam-m52909t0h57knl0/AppData/Local/Programs/MiKTeX/miktex/bin/x64/pdflatex.exe",
             "args": [
+                "-shell-escape",
                 "-synctex=1",
                 "-interaction=nonstopmode",
                 "-file-line-error",
@@ -44,12 +47,13 @@
             "env": {}
         },
         {
-            "name": "bibtex",
-            "command": "C:/Users/adam-m52909t0h57knl0/AppData/Local/Programs/MiKTeX/miktex/bin/x64/bibtex.exe",
+            "name": "biber",
+            "command": "C:/Users/adam-m52909t0h57knl0/AppData/Local/Programs/MiKTeX/miktex/bin/x64/biber.exe",
             "args": [
                 "%DOCFILE%"
             ],
             "env": {}
         }
-    ]
+    ],
+    "makefile.configureOnOpen": false
 }

@@ -12,75 +12,57 @@
     \item \texttt{src/simulations/cma2/script.py} --- Exp2 geometry builder
 \end{itemize}
 
-Both pipelines follow the same two-phase pattern; the key differences are which \texttt{GeometrySetter} is used and whether Contour Method boundary conditions come from a single default JSON or from a per-sample batch.
+Both pipelines follow the shared two-phase pattern described in Chapter~\ref{ch:workflow_pattern}. The key CM-specific difference is the BC injection step (Phase~1, Step~4): displacement boundary conditions are derived from polynomial surface fits and written into the mesh \texttt{.inp} files by \texttt{ContourProcessor}.
 
 % ─────────────────────────────────────────────────────────────
-\section{Experiment 1: \texttt{e1\_cm\_pipeline.py}}
-\label{sec:e1_cm}
+\section{CM-Specific Phase 1: Boundary-Condition Injection}
+\label{sec:cm_bc_injection}
 
-The \texttt{main(default\_process, convertion\_process)} function loads \texttt{data/config.json} via \texttt{ConfigurationManager} and executes two optional phases:
+After mesh generation (Step~3 of the shared pattern), \texttt{ContourProcessor(config).run\_batch()} applies polynomial-fitted surface data as nodal displacements to every mesh, producing \texttt{\_FI.inp} files. The operating mode depends on the experiment:
 
-\subsection{Phase 1 --- Simulation Setup and Execution}
-Controlled by \texttt{default\_process}:
-
-\begin{enumerate}
-    \item \texttt{ClearDirectory(config.cm\_directory)} --- purges previous results.
-    \item \texttt{ParameterGenerator.generate\_combinations(config)} --- creates the DOE matrix.
-    \item \texttt{GeometryGenerator.run\_batch(params, cm\_directory)} --- launches Abaqus CAE (\texttt{noGUI}) with \texttt{cma/script.py} for every parameter set.
-    \item \texttt{ContourProcessor(config).run\_batch(use\_default\_single\_file=True)} --- applies the default polynomial JSON to all meshes as nodal displacements.
-    \item \texttt{INPRunner.run\_all(silent=True)} --- submits every \texttt{\_FI.inp} to the Abaqus solver.
-\end{enumerate}
-
-\subsection{Phase 2 --- Result Conversion}
-Controlled by \texttt{convertion\_process}:
 \begin{itemize}
-    \item \texttt{ResultConverter.run\_pipeline(method\_type="Contour\_Method", script\_module="cma")} --- runs ODB extraction via \texttt{cma/conv.py} and then NPY-to-XDMF compilation.
+    \item \textbf{Single-file mode} (Exp1): \texttt{run\_batch(use\_default\_single\_file=True)} applies one default polynomial JSON to all meshes.
+    \item \textbf{Batch mode} (Exp2): \texttt{run\_batch()} iterates over every JSON in \texttt{polynomial\_json\_dir} (excluding \texttt{\_Raw.json}), producing an \texttt{S\textit{N}\_Mesh-...-\_FI.inp} per mesh/polynomial combination.
 \end{itemize}
 
 % ─────────────────────────────────────────────────────────────
-\section{Experiment 2: \texttt{e2\_cm\_pipeline.py}}
-\label{sec:e2_cm}
+\section{CM-Specific Phase 2: Result Conversion}
+\label{sec:cm_conversion}
 
-Structurally identical to Exp1 with two differences:
-
-\begin{enumerate}
-    \item The geometry script is overridden at runtime:
-    \begin{lstlisting}[language=Python]
-config.geometry_script = _here / "cma2" / "script.py"
-    \end{lstlisting}
-    \item \texttt{ContourProcessor.run\_batch()} is called \textit{without} \texttt{use\_default\_single\_file}, so it operates in \textbf{batch mode}: every JSON in \texttt{polynomial\_json\_dir} (excluding \texttt{\_Raw.json}) is applied to every base mesh, producing an \texttt{S\textit{N}\_Mesh-...-\_FI.inp} per combination.
-\end{enumerate}
+\begin{itemize}
+    \item \texttt{ResultConverter.run\_pipeline(method\_type="Contour\_Method", script\_module="cma")} --- ODB extraction via \texttt{cma/conv.py}, then NPY-to-XDMF compilation.
+\end{itemize}
 
 % ─────────────────────────────────────────────────────────────
-\section{CAE Script: \texttt{cma/script.py} (Exp1 Builder)}
-\label{sec:cma_script}
+\section{CM Step Topology}
+\label{sec:cm_steps}
 
-Runs inside the Abaqus Python 2.7 kernel. Defines \texttt{ContourAnalysis(BaseAnalysis)}, which implements the four abstract methods of \texttt{BaseAnalysis}:
+Both \texttt{cma/script.py} and \texttt{cma2/script.py} define a single analysis step:
+\begin{itemize}
+    \item \texttt{Step-1} (Static, General) with \texttt{previous = Initial}.
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────
+\section{Experiment Comparison}
+\label{sec:cm_exp_comparison}
+
+Both CAE scripts define \texttt{ContourAnalysis(BaseAnalysis)}. The per-experiment differences are confined to geometry, partitions, and boundary conditions:
 
 \begin{table}[ht]
 \centering
-\begin{tabular}{ll}
+\begin{tabular}{lp{5.2cm}p{5.2cm}}
 \hline
-\textbf{Method} & \textbf{Implementation} \\
+\textbf{Aspect} & \textbf{Experiment 1 (T-shape)} & \textbf{Experiment 2 (Block)} \\
 \hline
-\texttt{\_get\_geometry\_setter} & Returns \texttt{GeometrySetter()} (\texttt{sim\_one}, T-shape). \\
-\texttt{\_setup\_partitions}     & Calls \texttt{self.\_invt\_mesh\_part.set()} for partition alignment. \\
-\texttt{\_setup\_steps}          & Creates a single \texttt{Step-1} (Static, General) with previous=\texttt{Initial}. \\
-\texttt{\_setup\_boundary\_conditions} & Creates \texttt{Set\_Enc} ($z \ge L$), \texttt{Set\_Disp} ($z \le 0$), and encastre BC. \\
+Geometry script   & \texttt{cma/script.py}  & \texttt{cma2/script.py} (overridden at runtime) \\
+Geometry class    & \texttt{GeometrySetter} (\texttt{sim\_one}) & \texttt{GeometrySetterTwo} (\texttt{sim\_two}) \\
+BC mode           & Single-file: one default polynomial JSON & Batch: every JSON $\times$ every mesh \\
+CAE class         & \texttt{ContourAnalysis(BaseAnalysis)} & \texttt{ContourAnalysis(BaseAnalysis)} \\
+Partitions        & \texttt{\_invt\_mesh\_part.set()} for partition alignment & No partition call \\
+Encastre BC       & \texttt{Set\_Enc}: $z \ge L$ & Back face: $z \approx L$ (tolerance $\pm 0.01$) \\
+Displacement BC   & \texttt{Set\_Disp}: $z \le 0$ & \texttt{Set\_Disp}: $z \le 0$ \\
 \hline
 \end{tabular}
-\caption{Abstract method implementations in \texttt{cma/script.py}.}
+\caption{Per-experiment differences in the Contour Method workflow.}
+\label{tab:cm_comparison}
 \end{table}
-
-\textbf{Parameter injection:} The \texttt{GeometryGenerator} serialises the DOE dictionary into \texttt{os.environ["SIMULATION\_PARAMETERS"]}; the script reads it via \texttt{ParametersGetter()} and passes it to \texttt{BaseAnalysis.\_\_init\_\_}.
-
-% ─────────────────────────────────────────────────────────────
-\section{CAE Script: \texttt{cma2/script.py} (Exp2 Builder)}
-\label{sec:cma2_script}
-
-Same class name (\texttt{ContourAnalysis}) but uses \texttt{GeometrySetterTwo()} (block geometry from \texttt{sim\_two}). Differences from Exp1:
-
-\begin{itemize}
-    \item \textbf{Geometry:} Block cross-section instead of T-shape.
-    \item \textbf{Boundary conditions:} Encastre is applied to the \textit{back face} ($z \approx L$) using a tight tolerance band (\texttt{zMin = comprimento - 0.01}, \texttt{zMax = comprimento + 0.01}). \texttt{Set\_Disp} ($z \le 0$) is created for the displacement surface.
-\end{itemize}

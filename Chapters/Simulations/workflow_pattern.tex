@@ -1,0 +1,71 @@
+\chapter{Simulation Workflow Pattern}
+\label{ch:workflow_pattern}
+
+The Contour Method (Chapter~\ref{ch:ch_cm_workflow}) and Residual Stress Analysis (Chapter~\ref{ch:ch_rs_workflow}) pipelines share a common two-phase orchestration pattern. This chapter describes the shared structure; the two chapters that follow document only the method-specific and experiment-specific deviations.
+
+% ─────────────────────────────────────────────────────────────
+\section{Two-Phase Pipeline}
+\label{sec:wf_two_phase}
+
+Every simulation pipeline script (\texttt{e\{n\}\_cm\_pipeline.py}, \texttt{e\{n\}\_rs\_pipeline.py}) exposes a \texttt{main()} function whose boolean flags control two sequential phases.
+
+\subsection{Phase 1 --- Simulation Setup and Execution}
+
+\begin{enumerate}
+    \item \texttt{ClearDirectory(target\_directory)} --- purges previous results.
+    \item \texttt{ParameterGenerator.generate\_combinations(config)} --- creates the design-of-experiments (DOE) matrix from \texttt{data/config.json}.
+    \item \texttt{GeometryGenerator.run\_batch(params, directory)} --- launches Abaqus CAE (\texttt{noGUI}) with the experiment-specific geometry script for every parameter set.
+    \item \textbf{BC / IC injection (method-specific)} --- applies boundary conditions (CM) or initial conditions (RSA) to the generated \texttt{.inp} files. The exact processor differs per workflow; see the respective chapters.
+    \item \texttt{INPRunner.run\_all(silent=True)} --- submits every modified \texttt{.inp} to the Abaqus solver.
+\end{enumerate}
+
+\subsection{Phase 2 --- Result Conversion}
+
+\begin{itemize}
+    \item \texttt{ResultConverter.run\_pipeline(method\_type, script\_module)} --- runs ODB data extraction via the workflow's \texttt{conv.py} script, then NPY-to-XDMF compilation for open-format post-processing.
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────
+\section{CAE Script Architecture}
+\label{sec:wf_cae_arch}
+
+Each CAE script runs inside the Abaqus Python 2.7 kernel and defines a subclass of \texttt{BaseAnalysis}. The subclass must implement four abstract methods:
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lp{9.5cm}}
+\hline
+\textbf{Abstract Method} & \textbf{Responsibility} \\
+\hline
+\texttt{\_get\_geometry\_setter} & Selects the geometry class (\texttt{GeometrySetter} for T-shape, \texttt{GeometrySetterTwo} for block). \\
+\texttt{\_setup\_partitions}     & Applies mesh partitions and, optionally, datum planes. \\
+\texttt{\_setup\_steps}          & Creates the analysis step sequence (\texttt{Static, General}). \\
+\texttt{\_setup\_boundary\_conditions} & Defines node sets and applies BCs and/or initial conditions. \\
+\hline
+\end{tabular}
+\caption{Abstract methods of \texttt{BaseAnalysis}, implemented by every CAE script.}
+\label{tab:base_analysis_methods}
+\end{table}
+
+\textbf{Parameter injection:} \texttt{GeometryGenerator} serialises the DOE dictionary into \texttt{os.environ["SIMULATION\_PARAMETERS"]}; each script reads it via \texttt{ParametersGetter()} and passes it to \texttt{BaseAnalysis.\_\_init\_\_}.
+
+% ─────────────────────────────────────────────────────────────
+\section{Experiment Geometry Variants}
+\label{sec:wf_geometry_variants}
+
+Both CM and RSA workflows exist in two experiment-specific variants. The geometry-level differences are identical across all four pipelines and are summarised once here:
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lll}
+\hline
+\textbf{Aspect} & \textbf{Experiment 1 (T-shape)} & \textbf{Experiment 2 (Block)} \\
+\hline
+Geometry class    & \texttt{GeometrySetter} (\texttt{sim\_one}) & \texttt{GeometrySetterTwo} (\texttt{sim\_two}) \\
+Cross-section     & T-shaped specimen & Rectangular / milled block \\
+Config override   & Uses default \texttt{config.geometry\_script} & Overrides at runtime: \texttt{config.geometry\_script = \_here / "\ldots" / "script.py"} \\
+\hline
+\end{tabular}
+\caption{Geometry variants shared by all simulation pipelines.}
+\label{tab:geometry_variants}
+\end{table}
